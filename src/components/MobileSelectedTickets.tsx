@@ -1,0 +1,132 @@
+import React from 'react'
+import { seatLookup } from '@/lib/utils'
+
+interface GeneralAccessTicket {
+  id: string;
+  name: string;
+  price: number;
+  quantity: number;
+}
+
+interface MobileSelectedTicketsProps {
+  selectedSeats: Record<string, string[]>
+  zonePrices: Record<string, number>
+  onRemoveSeat?: (seatId: string) => void
+  generalAccessTickets?: GeneralAccessTicket[]
+  onGeneralAccessRemove?: (ticketId: string) => void
+}
+
+const MobileSelectedTickets: React.FC<MobileSelectedTicketsProps> = ({ selectedSeats, zonePrices, onRemoveSeat, generalAccessTickets = [], onGeneralAccessRemove }) => {
+  const allTickets = Object.entries(selectedSeats).flatMap(([zoneId, seatIds]) => {
+    const zonePrice = zonePrices[zoneId] || 0
+    return seatIds.map(seatId => {
+      const seatData = seatLookup[seatId]
+      
+      if (!seatData) {
+        console.warn(`Seat data not found for ${seatId}`)
+        return null
+      }
+
+      return {
+        id: seatId,
+        zone: zoneId,
+        row: seatData.row,
+        number: seatData.number,
+        price: zonePrice
+      }
+    }).filter((ticket): ticket is NonNullable<typeof ticket> => ticket !== null)
+  })
+
+  const totalPrice = allTickets.reduce((sum, ticket) => sum + ticket.price, 0) + 
+                     generalAccessTickets.reduce((sum, ticket) => sum + (ticket.price * ticket.quantity), 0)
+  const totalTickets = allTickets.length + generalAccessTickets.reduce((sum, ticket) => sum + ticket.quantity, 0)
+
+  if (totalTickets === 0) {
+    return null
+  }
+
+  return (
+    <div className="fixed bottom-0 left-0 right-0 z-50 block lg:hidden" style={{pointerEvents: 'auto'}}>
+      <div className="bg-gray-800/95 rounded-t-xl sm:rounded-t-2xl shadow-2xl border border-gray-700 text-white w-full">
+        <div className="p-3 sm:p-4">
+          {totalTickets > 0 ? (
+                          <>
+                <div className="font-bold uppercase text-base sm:text-[18px] leading-tight mb-2 sm:mb-3 text-white" style={{fontFamily: 'Inter, var(--font-geist-sans), Arial, sans-serif'}}>
+                  {totalTickets} BILETE: {totalPrice} LEI
+                </div>
+              <div className="flex flex-row gap-1.5 sm:gap-2 overflow-x-auto pb-2 hide-scrollbar">
+                {allTickets.map(({ zone, id, price, row, number }) => (
+                  <div key={zone + id} className="flex flex-col min-w-[120px] sm:min-w-[140px] bg-gray-700/80 rounded-lg shadow px-1.5 sm:px-2 py-1 sm:py-1.5 mr-1 relative border border-gray-600/60 flex-shrink-0">
+                    <div className="flex items-center justify-between mb-0.5 sm:mb-1">
+                      <span className="bg-blue-900 text-blue-200 text-[10px] sm:text-[11px] font-extrabold uppercase rounded px-1 sm:px-1.5 py-0.5" style={{fontFamily: 'Inter, var(--font-geist-sans), Arial, sans-serif'}}>
+                        ZONA {zone}
+                      </span>
+                      {onRemoveSeat && (
+                        <button
+                          className="ml-1 w-4 h-4 sm:w-5 sm:h-5 flex items-center justify-center rounded-full bg-red-500/20 text-red-400 hover:bg-red-500/30 hover:text-red-300 transition-all duration-200 cursor-pointer border border-red-500/30 shrink-0"
+                          onClick={() => onRemoveSeat(id)}
+                          aria-label="Удалить билет"
+                        >
+                          <svg width="10" height="10" className="sm:w-3 sm:h-3" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg">
+                            <path d="M12 4L4 12M4 4L12 12" stroke="currentColor" strokeWidth="2" strokeLinecap="round"/>
+                          </svg>
+                        </button>
+                      )}
+                    </div>
+                    <div className="flex flex-row items-center gap-0.5 sm:gap-1">
+                      <span className="text-white text-[10px] sm:text-[11px] font-black uppercase truncate" style={{fontFamily: 'Inter, var(--font-geist-sans), Arial, sans-serif'}}>
+                        Rând: {row}, Loc: {parseInt(number, 10)}
+                      </span>
+                    </div>
+                    <div className="text-green-400 font-bold text-[11px] sm:text-[13px] mt-0.5">{price} Lei</div>
+                  </div>
+                ))}
+                
+                {generalAccessTickets.map((ticket) => (
+                  <div key={ticket.id} className="flex flex-col min-w-[120px] sm:min-w-[140px] bg-gray-700/80 rounded-lg shadow px-1.5 sm:px-2 py-1 sm:py-1.5 mr-1 relative border border-gray-600/60 flex-shrink-0">
+                    <div className="flex items-center justify-between mb-0.5 sm:mb-1">
+                      <span className="bg-blue-900 text-blue-200 text-[10px] sm:text-[11px] font-extrabold uppercase rounded px-1 sm:px-1.5 py-0.5" style={{fontFamily: 'Inter, var(--font-geist-sans), Arial, sans-serif'}}>
+                        {ticket.name}
+                      </span>
+                      {onGeneralAccessRemove && (
+                        <button
+                          className="ml-1 w-4 h-4 sm:w-5 sm:h-5 flex items-center justify-center rounded-full bg-red-500/20 text-red-400 hover:bg-red-500/30 hover:text-red-300 transition-all duration-200 cursor-pointer border border-red-500/30 shrink-0"
+                          onClick={() => onGeneralAccessRemove(ticket.id)}
+                          aria-label="Șterge biletul"
+                        >
+                          <svg width="10" height="10" className="sm:w-3 sm:h-3" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg">
+                            <path d="M12 4L4 12M4 4L12 12" stroke="currentColor" strokeWidth="2" strokeLinecap="round"/>
+                          </svg>
+                        </button>
+                      )}
+                    </div>
+                    <div className="flex flex-row items-center gap-0.5 sm:gap-1">
+                      <span className="text-white text-[10px] sm:text-[11px] font-black uppercase truncate" style={{fontFamily: 'Inter, var(--font-geist-sans), Arial, sans-serif'}}>
+                        {ticket.quantity} bilet{ticket.quantity > 1 ? 'e' : ''}
+                      </span>
+                    </div>
+                    <div className="text-green-400 font-bold text-[11px] sm:text-[13px] mt-0.5">{ticket.price * ticket.quantity} Lei</div>
+                  </div>
+                ))}
+              </div>
+              <button className="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-2.5 sm:py-3 px-3 sm:px-4 rounded-lg transition-colors mt-2 sm:mt-3 text-sm sm:text-base">
+                Cumpără
+              </button>
+            </>
+          ) : (
+            <>
+              <div className="font-bold uppercase text-base sm:text-[18px] leading-tight mb-2 sm:mb-3 text-white" style={{fontFamily: 'Inter, var(--font-geist-sans), Arial, sans-serif'}}>
+                BILETE SELECTATE
+              </div>
+              <div className="text-center py-3 sm:py-4">
+                <p className="text-sm text-gray-400">Nici un loc selectat</p>
+              </div>
+            </>
+          )}
+        </div>
+      </div>
+    </div>
+  )
+}
+
+export default MobileSelectedTickets 
