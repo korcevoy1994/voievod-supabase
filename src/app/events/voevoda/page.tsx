@@ -151,8 +151,8 @@ export default function VoevodaEventPage() {
 
   return (
     <div className="bg-gradient-to-br from-gray-900 via-gray-800 to-black min-h-screen w-full p-2 sm:p-4 lg:p-6 xl:p-8 flex flex-col pb-32 lg:pb-8">
-      <div className="flex flex-col lg:flex-row justify-center items-stretch gap-3 sm:gap-4 lg:gap-6 w-full max-w-[95vw] lg:max-w-7xl mx-auto flex-1">
-        <div className="w-full lg:w-3/4 relative bg-gray-800/80 backdrop-blur-lg rounded-xl lg:rounded-2xl xl:rounded-3xl shadow-2xl border border-gray-700 p-2 sm:p-4 lg:p-6 xl:p-8 flex flex-col lg:min-h-[60vh] min-h-[50vh]">
+      <div className="flex flex-col lg:flex-row justify-center items-stretch gap-3 sm:gap-4 lg:gap-6 w-full max-w-[95vw] lg:max-w-7xl mx-auto h-[calc(100vh-12rem)] lg:h-[calc(100vh-8rem)]">
+        <div className="w-full lg:w-3/4 relative bg-gray-800/80 backdrop-blur-lg rounded-xl lg:rounded-2xl xl:rounded-3xl shadow-2xl border border-gray-700 p-2 sm:p-4 lg:p-6 xl:p-8 flex flex-col h-full">
           <AnimatePresence mode="wait">
             {!activeZone ? (
               <motion.div
@@ -300,7 +300,7 @@ export default function VoevodaEventPage() {
           </AnimatePresence>
         </div>
 
-        <div className="hidden lg:block lg:w-1/4 min-w-[280px] xl:min-w-[320px]">
+        <div className="hidden lg:block lg:w-1/4 min-w-[280px] xl:min-w-[320px] h-full">
           <SelectedTickets
             selectedSeats={selectedSeats}
             zonePrices={zonePrices}
