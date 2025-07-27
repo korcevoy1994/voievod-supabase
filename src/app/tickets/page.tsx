@@ -2,14 +2,17 @@
 
 import React, { useState, useEffect } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
-import type { ReactZoomPanPinchContentRef } from 'react-zoom-pan-pinch'
+import { useRouter } from 'next/navigation'
+import type { ReactZoomPanPinchRef } from 'react-zoom-pan-pinch'
 
 // Import the SVG as a React component
 import ArenaSVG from '@/components/ArenaSVG'
-import SeatMap from '@/components/SeatMap'
+import SeatMapSupabase from '@/components/SeatMapSupabase'
 import SelectedTickets from '@/components/SelectedTickets'
 import MobileSelectedTickets from '@/components/MobileSelectedTickets'
 import LegendBar from '@/components/LegendBar'
+import { useEventPricing } from '@/lib/hooks/useSupabaseData'
+import { getOrCreateSessionUserId } from '@/lib/userSession'
 
 interface GeneralAccessTicket {
   id: string;
@@ -24,45 +27,92 @@ const viewVariants = {
   exit: { opacity: 0, scale: 0.95 },
 }
 
-const zonePrices: Record<string, number> = {
-    '201': 650,
-    '202': 850,   
-    '203': 950,
-    '204': 950,
-    '205': 750,
-    '206': 1100,
-    '207': 1100,
-    '208': 1100,
-    '209': 750,
-    '210': 950,
-    '211': 950,  
-    '212': 850,
-    '213': 650,
-}
-
-export default function VoevodaEventPage() {
+export default function VoevodaSupabaseEventPage() {
+  const router = useRouter()
+  // Загружаем цены из базы данных
+  const { zonePrices, loading: pricingLoading, error: pricingError } = useEventPricing('550e8400-e29b-41d4-a716-446655440000')
   const [activeZone, setActiveZone] = useState<string | null>(null)
   const [showTooltip, setShowTooltip] = useState(true)
   const [selectedSeats, setSelectedSeats] = useState<Record<string, string[]>>({})
   const [generalAccessTickets, setGeneralAccessTickets] = useState<GeneralAccessTicket[]>([])
   const [showGeneralAccessModal, setShowGeneralAccessModal] = useState(false)
   const [generalAccessQuantity, setGeneralAccessQuantity] = useState(1)
-  const seatmapRef = React.useRef<ReactZoomPanPinchContentRef | null>(null)
+  const seatmapRef = React.useRef<ReactZoomPanPinchRef | null>(null)
 
-  // Загружаем выбранные места из localStorage при монтировании
+  // Загружаем выбранные места и general access билеты из localStorage при монтировании
   useEffect(() => {
-    const saved = localStorage.getItem('voevoda_selectedSeats')
-    if (saved) {
+    console.log('🔄 Загрузка данных при монтировании компонента')
+    
+    // Сначала проверяем, есть ли данные checkout (возврат с checkout)
+    const checkoutData = localStorage.getItem('checkout_data')
+    console.log('📦 checkout_data:', checkoutData ? 'найден' : 'не найден')
+    
+    if (checkoutData) {
       try {
-        setSelectedSeats(JSON.parse(saved))
-      } catch {}
+        const data = JSON.parse(checkoutData)
+        console.log('✅ Восстанавливаем данные из checkout_data:', data)
+        
+        // Восстанавливаем выбранные места из checkout данных
+         const restoredSeats: Record<string, string[]> = {}
+         
+         data.seats?.forEach((seat: any) => {
+           if (!restoredSeats[seat.zone]) {
+             restoredSeats[seat.zone] = []
+           }
+           restoredSeats[seat.zone].push(seat.id)
+         })
+         setSelectedSeats(restoredSeats)
+         console.log('🎫 Восстановлены места:', restoredSeats)
+         
+         // Восстанавливаем general access билеты
+         if (data.generalAccess) {
+           setGeneralAccessTickets(data.generalAccess)
+           console.log('🎟️ Восстановлены general access билеты:', data.generalAccess)
+         }
+        
+        return // Выходим, чтобы не загружать из других источников
+      } catch (error) {
+        console.error('❌ Ошибка восстановления данных из checkout:', error)
+      }
+    }
+    
+    // Если нет checkout данных, загружаем из обычного localStorage
+    const savedSeats = localStorage.getItem('voevoda_supabase_selectedSeats')
+    console.log('💾 voevoda_supabase_selectedSeats:', savedSeats ? 'найден' : 'не найден')
+    
+    if (savedSeats) {
+      try {
+        const seats = JSON.parse(savedSeats)
+        console.log('✅ Загружаем сохраненные места:', seats)
+        setSelectedSeats(seats)
+      } catch (error) {
+        console.error('❌ Ошибка загрузки сохраненных мест:', error)
+      }
+    }
+    
+    const savedGeneralAccess = localStorage.getItem('voevoda_supabase_generalAccess')
+    console.log('🎟️ voevoda_supabase_generalAccess:', savedGeneralAccess ? 'найден' : 'не найден')
+    
+    if (savedGeneralAccess) {
+      try {
+        const tickets = JSON.parse(savedGeneralAccess)
+        console.log('✅ Загружаем сохраненные general access билеты:', tickets)
+        setGeneralAccessTickets(tickets)
+      } catch (error) {
+        console.error('❌ Ошибка загрузки general access билетов:', error)
+      }
     }
   }, [])
 
   // Сохраняем выбранные места в localStorage при изменении
   useEffect(() => {
-    localStorage.setItem('voevoda_selectedSeats', JSON.stringify(selectedSeats))
+    localStorage.setItem('voevoda_supabase_selectedSeats', JSON.stringify(selectedSeats))
   }, [selectedSeats])
+  
+  // Сохраняем general access билеты в localStorage при изменении
+  useEffect(() => {
+    localStorage.setItem('voevoda_supabase_generalAccess', JSON.stringify(generalAccessTickets))
+  }, [generalAccessTickets])
 
   const GENERAL_ACCESS_MAX = 2000
   const GENERAL_ACCESS_PRICE = 500
@@ -115,11 +165,15 @@ export default function VoevodaEventPage() {
     const isSelected = currentSeats.includes(seatId)
     
     if (isSelected) {
+      // Убираем место из выбранных
       const newSeats = currentSeats.filter(id => id !== seatId)
       setSelectedSeats(prev => ({ ...prev, [activeZone]: newSeats }))
+      console.log('🎫 Место убрано из выбранных:', seatId)
     } else {
+      // Добавляем место в выбранные
       const newSeats = [...currentSeats, seatId]
       setSelectedSeats(prev => ({ ...prev, [activeZone]: newSeats }))
+      console.log('🎫 Место добавлено в выбранные:', seatId)
     }
   }
 
@@ -143,11 +197,129 @@ export default function VoevodaEventPage() {
     const zoneId = seatId.split('-')[0]
     const currentSeats = selectedSeats[zoneId] || []
     const newSeats = currentSeats.filter(id => id !== seatId)
+    
+    // Убираем место из выбранных
     setSelectedSeats(prev => ({ ...prev, [zoneId]: newSeats }))
+    console.log('🎫 Место удалено:', seatId)
   }
 
   const currentZoneSeats = activeZone ? selectedSeats[activeZone] || [] : []
-  const price = activeZone ? zonePrices[activeZone] : 0
+  const price = activeZone ? zonePrices[activeZone] || 0 : 0
+
+  // Показываем загрузку, если цены еще не загружены
+  if (pricingLoading) {
+    return (
+      <div className="bg-gradient-to-br from-gray-900 via-gray-800 to-black min-h-screen w-full flex items-center justify-center">
+        <div className="text-white text-xl">Загрузка цен...</div>
+      </div>
+    )
+  }
+
+  // Показываем ошибку, если не удалось загрузить цены
+  if (pricingError) {
+    return (
+      <div className="bg-gradient-to-br from-gray-900 via-gray-800 to-black min-h-screen w-full flex items-center justify-center">
+        <div className="text-red-400 text-xl">Ошибка загрузки цен: {pricingError}</div>
+      </div>
+    )
+  }
+
+  // Обработчик перехода к checkout
+  const handleCheckout = async () => {
+    console.log('🛒 Начинаем процесс checkout')
+    
+    // Собираем все выбранные места
+    const allSelectedSeats: string[] = []
+    Object.values(selectedSeats).forEach(seats => {
+      allSelectedSeats.push(...seats)
+    })
+    
+    if (allSelectedSeats.length === 0 && generalAccessTickets.length === 0) {
+      alert('Выберите места или билеты общего доступа')
+      return
+    }
+    
+    try {
+      // Очищаем старые checkout_data перед созданием новых
+      localStorage.removeItem('checkout_data')
+      console.log('🗑️ Очищены старые checkout_data')
+      
+      // Собираем данные о выбранных местах с ценами
+      const checkoutSeats: Array<{
+        id: string
+        zone: string
+        row: string
+        number: string
+        price: number
+      }> = []
+      
+      for (const [zoneId, seatIds] of Object.entries(selectedSeats)) {
+        if (seatIds.length === 0) continue
+        
+        try {
+          // Получаем данные о местах зоны
+          const response = await fetch(`/api/zones/${zoneId}/seats`)
+          if (!response.ok) continue
+          
+          const data = await response.json()
+          const zoneSeats = data.seats || []
+          
+          // Находим выбранные места и добавляем их с реальными ценами
+          seatIds.forEach(seatId => {
+             const seatData = zoneSeats.find((seat: any) => seat.id === seatId)
+             
+             if (seatData) {
+               checkoutSeats.push({
+                 id: seatId,
+                 zone: zoneId,
+                 row: seatData.row,
+                 number: seatData.number,
+                 price: seatData.price || 0
+               })
+             }
+          })
+        } catch (error) {
+          console.error('Error fetching seat prices for checkout:', error)
+          // Fallback к старой логике с zonePrices
+          seatIds.forEach(seatId => {
+            const [, row, number] = seatId.split('-')
+             const zonePrice = zonePrices[zoneId] || 0
+             
+             checkoutSeats.push({
+               id: seatId,
+               zone: zoneId,
+               row: row || '',
+               number: number || '',
+               price: zonePrice
+             })
+          })
+        }
+      }
+      
+      // Подсчитываем общую стоимость
+      const totalPrice = checkoutSeats.reduce((sum, seat) => sum + seat.price, 0) + 
+                         generalAccessTickets.reduce((sum, ticket) => sum + (ticket.price * ticket.quantity), 0)
+      const totalTickets = checkoutSeats.length + generalAccessTickets.reduce((sum, ticket) => sum + ticket.quantity, 0)
+      
+      // Сохраняем данные для checkout в localStorage
+      const checkoutData = {
+        seats: checkoutSeats,
+        generalAccess: generalAccessTickets,
+        totalPrice,
+        totalTickets
+      }
+      
+      console.log('💾 Сохраняем checkout_data:', checkoutData)
+      localStorage.setItem('checkout_data', JSON.stringify(checkoutData))
+      
+      // Перенаправляем на страницу checkout
+      console.log('🔄 Переходим на страницу checkout')
+      router.push('/checkout')
+    } catch (error) {
+      console.error('Ошибка при подготовке к чекауту:', error)
+      alert('Произошла ошибка при подготовке к оплате')
+    }
+  }
 
   return (
     <div className="bg-gradient-to-br from-gray-900 via-gray-800 to-black min-h-screen w-full p-2 sm:p-4 lg:p-6 xl:p-8 flex flex-col pb-32 lg:pb-8">
@@ -164,10 +336,20 @@ export default function VoevodaEventPage() {
                 className="flex flex-col h-full"
               >
                 <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2 sm:gap-4 mb-3 sm:mb-6 lg:mb-8">
-                  <h1 className="text-xl sm:text-2xl lg:text-3xl xl:text-4xl font-bold text-white">Voievoda</h1>
+                  <div className="flex items-center gap-4">
+                    <h1 className="text-xl sm:text-2xl lg:text-3xl xl:text-4xl font-bold text-white">
+                      Voievoda (Supabase)
+                    </h1>
+                    <button
+                      onClick={() => router.push('/profile')}
+                      className="bg-blue-600 hover:bg-blue-700 text-white px-3 py-1.5 rounded-lg text-sm font-medium transition-colors cursor-pointer"
+                    >
+                      Profil
+                    </button>
+                  </div>
                   {showTooltip && (
                     <div className="bg-blue-500 text-white px-2 sm:px-3 py-1 rounded-lg text-xs sm:text-sm">
-                      Click on a zone to select seats
+                      Faceți clic pe o zonă pentru a selecta locuri
                       <button
                         onClick={() => setShowTooltip(false)}
                         className="ml-2 text-blue-200 hover:text-white"
@@ -180,23 +362,13 @@ export default function VoevodaEventPage() {
                 <div className="flex flex-col flex-1 min-h-0">
                   <LegendBar />
                   <div className="flex-1 flex items-center justify-center min-h-0">
-                    {activeZone ? (
-                      <SeatMap
-                        ref={seatmapRef}
-                        zoneId={activeZone}
-                        price={price}
-                        selectedSeats={currentZoneSeats}
-                        onSeatClick={handleSeatClick}
-                      />
-                    ) : (
-                      <ArenaSVG 
-                        onZoneClick={handleZoneClick} 
-                        selectedSeats={selectedSeats} 
-                        onGeneralAccessClick={handleGeneralAccessClick}
-                        zonePrices={zonePrices}
-                        generalAccessCount={currentGeneralAccessCount}
-                      />
-                    )}
+                    <ArenaSVG 
+                      onZoneClick={handleZoneClick} 
+                      selectedSeats={selectedSeats} 
+                      onGeneralAccessClick={handleGeneralAccessClick}
+                      zonePrices={zonePrices}
+                      generalAccessCount={currentGeneralAccessCount}
+                    />
                   </div>
                 </div>
               </motion.div>
@@ -221,7 +393,7 @@ export default function VoevodaEventPage() {
                     Înapoi
                   </button>
                   <h1 className="text-xl font-bold text-white tracking-tight">
-                    Zone {activeZone}
+                    Zona {activeZone}
                   </h1>
                 </div>
 
@@ -232,10 +404,10 @@ export default function VoevodaEventPage() {
                       onClick={handleBackToZones}
                       className="bg-gray-600 text-white px-3 lg:px-5 py-2 rounded-lg hover:bg-gray-700 transition-colors text-sm font-semibold cursor-pointer"
                     >
-                      ← Back to zone
+                      ← Înapoi la zone
                     </button>
                     <h1 className="text-lg sm:text-xl lg:text-2xl xl:text-3xl font-bold text-white tracking-tight">
-                      Zone {activeZone}
+                      Zona {activeZone} (Supabase)
                     </h1>
                   </div>
                   <div className="flex items-center gap-2">
@@ -263,13 +435,14 @@ export default function VoevodaEventPage() {
                 {/* SeatMap Container */}
                 <div className="relative flex-1 flex flex-col min-h-0">
                   <div className="relative flex-1 overflow-hidden">
-                    <SeatMap
-                      ref={seatmapRef}
-                      zoneId={activeZone}
-                      price={price}
-                      selectedSeats={currentZoneSeats}
-                      onSeatClick={handleSeatClick}
-                    />
+                    <SeatMapSupabase
+                  ref={seatmapRef}
+                  zoneId={activeZone}
+                  selectedSeats={currentZoneSeats}
+                  onSeatClick={handleSeatClick}
+                  eventId="550e8400-e29b-41d4-a716-446655440000"
+                  price={price}
+                />
                   </div>
                   {/* Mobile Zoom Controls */}
                   <div className="sm:hidden flex justify-center py-2 mt-[100px] shrink-0">
@@ -307,6 +480,7 @@ export default function VoevodaEventPage() {
             onRemoveSeat={handleRemoveSeat}
             generalAccessTickets={generalAccessTickets}
             onGeneralAccessRemove={handleRemoveGeneralAccess}
+            onCheckout={handleCheckout}
           />
         </div>
       </div>
@@ -318,6 +492,7 @@ export default function VoevodaEventPage() {
         onRemoveSeat={handleRemoveSeat}
         generalAccessTickets={generalAccessTickets}
         onGeneralAccessRemove={handleRemoveGeneralAccess}
+        onCheckout={handleCheckout}
       />
 
       {/* General Access Modal */}
@@ -332,7 +507,7 @@ export default function VoevodaEventPage() {
           >
             {/* Header */}
             <div className="flex items-center justify-between mb-6">
-              <h3 className="text-2xl font-bold text-white">General Access</h3>
+              <h3 className="text-2xl font-bold text-white">Acces General</h3>
               <button 
                 onClick={() => setShowGeneralAccessModal(false)}
                 className="w-8 h-8 rounded-full bg-gray-700 hover:bg-gray-600 flex items-center justify-center text-gray-400 hover:text-white transition-colors cursor-pointer"
@@ -404,4 +579,4 @@ export default function VoevodaEventPage() {
       )}
     </div>
   )
-} 
+}

@@ -126,7 +126,7 @@ const ArenaSVG: React.FC<ArenaSVGProps> = ({ onZoneClick, selectedSeats, onGener
       y: e.clientY - rect.top - 38,
       content: (
         <>
-          <div style={{fontWeight:700, fontSize:18, marginBottom:4, letterSpacing:0.2}}>General Access</div>
+          <div style={{fontWeight:700, fontSize:18, marginBottom:4, letterSpacing:0.2}}>Acces General</div>
           <div style={{marginBottom:2}}>Preț: <b>{price} Lei</b></div>
           <div>Locuri libere: <b>{free}</b></div>
         </>
@@ -364,4 +364,4 @@ const ArenaSVG: React.FC<ArenaSVGProps> = ({ onZoneClick, selectedSeats, onGener
   )
 }
 
-export default ArenaSVG 
+export default ArenaSVG

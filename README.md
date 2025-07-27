@@ -1,50 +1,48 @@
-# Voevoda Event Booking Platform
+# VOEV - Система бронирования билетов
 
-## Technologies Used
-- Next.js 14
-- TypeScript
-- Tailwind CSS
-- Framer Motion
-- Zustand (planned)
+Современная система бронирования билетов для мероприятий с интерактивной картой мест.
 
-## Features
-- Interactive Arena Seating Map
-- Zone Selection and Hiding
-- Responsive Design
-- Animated Interactions
+## 🚀 Быстрый старт
 
-## Getting Started
+1. Клонируйте репозиторий
+2. Установите зависимости: `npm install`
+3. Настройте переменные окружения (см. `.env.example`)
+4. Запустите проект: `npm run dev`
 
-### Prerequisites
-- Node.js 18+
-- npm or yarn
+## 📚 Документация
 
-### Installation
-1. Clone the repository
-2. Install dependencies:
-   ```bash
-   npm install
-   ```
+Вся документация проекта находится в папке [`docs/`](./docs/):
 
-3. Run the development server:
-```bash
-npm run dev
-   ```
+- **[SUPABASE_INTEGRATION_COMPLETE.md](./docs/SUPABASE_INTEGRATION_COMPLETE.md)** - Полная интеграция с Supabase
+- **[MAIB_INTEGRATION.md](./docs/MAIB_INTEGRATION.md)** - Интеграция платежной системы MAIB
+- **[DATABASE_README.md](./docs/DATABASE_README.md)** - Документация по базе данных
+- **[SQL_README.md](./docs/SQL_README.md)** - Описание SQL скриптов
+- **[PDF_API_DOCUMENTATION.md](./docs/PDF_API_DOCUMENTATION.md)** - API для генерации PDF
+- **[CLEANUP_SYSTEM.md](./docs/CLEANUP_SYSTEM.md)** - Система очистки данных
+- **[SUPABASE_STRUCTURE.md](./docs/SUPABASE_STRUCTURE.md)** - Структура Supabase
+- **[SUPABASE_EXPORT_GUIDE.md](./docs/SUPABASE_EXPORT_GUIDE.md)** - Руководство по экспорту
 
-## Project Structure
-- `src/app/events/voevoda/page.tsx`: Main event booking page
-- `src/components/ArenaSVG.tsx`: Interactive SVG component
-- `tailwind.config.js`: Tailwind CSS configuration
+## 🗂️ Структура проекта
 
-## Interaction Guide
-- Click on zones to select/hide them
-- Use the "Reset Selection" button to clear selections
+```
+├── docs/           # Документация проекта
+├── sql/            # SQL скрипты
+├── src/            # Исходный код
+│   ├── app/        # Next.js App Router
+│   ├── components/ # React компоненты
+│   └── lib/        # Утилиты и библиотеки
+├── database/       # Скрипты инициализации БД
+└── scripts/        # Вспомогательные скрипты
+```
 
-## Roadmap
-- [ ] Add seat selection within zones
-- [ ] Implement booking logic
-- [ ] Add user authentication
-- [ ] Create payment integration
+## 🛠️ Технологии
 
-## License
+- **Frontend**: Next.js 14, React, TypeScript, Tailwind CSS
+- **Backend**: Next.js API Routes
+- **База данных**: Supabase (PostgreSQL)
+- **Платежи**: MAIB
+- **PDF**: jsPDF
+
+## 📄 Лицензия
+
 MIT License

@@ -1,5 +1,4 @@
-import React from 'react'
-import { seatLookup } from '@/lib/utils'
+import React, { useState, useEffect } from 'react'
 
 interface GeneralAccessTicket {
   id: string;
@@ -8,34 +7,86 @@ interface GeneralAccessTicket {
   quantity: number;
 }
 
+interface SeatWithPrice {
+  id: string;
+  zone: string;
+  row: string;
+  number: string;
+  price: number;
+}
+
 interface MobileSelectedTicketsProps {
   selectedSeats: Record<string, string[]>
   zonePrices: Record<string, number>
   onRemoveSeat?: (seatId: string) => void
   generalAccessTickets?: GeneralAccessTicket[]
   onGeneralAccessRemove?: (ticketId: string) => void
+  onCheckout?: () => void
 }
 
-const MobileSelectedTickets: React.FC<MobileSelectedTicketsProps> = ({ selectedSeats, zonePrices, onRemoveSeat, generalAccessTickets = [], onGeneralAccessRemove }) => {
-  const allTickets = Object.entries(selectedSeats).flatMap(([zoneId, seatIds]) => {
-    const zonePrice = zonePrices[zoneId] || 0
-    return seatIds.map(seatId => {
-      const seatData = seatLookup[seatId]
-      
-      if (!seatData) {
-        console.warn(`Seat data not found for ${seatId}`)
-        return null
-      }
+const MobileSelectedTickets: React.FC<MobileSelectedTicketsProps> = ({ selectedSeats, zonePrices, onRemoveSeat, generalAccessTickets = [], onGeneralAccessRemove, onCheckout }) => {
+  const [seatsWithPrices, setSeatsWithPrices] = useState<SeatWithPrice[]>([])
+  const [loading, setLoading] = useState(false)
 
-      return {
-        id: seatId,
-        zone: zoneId,
-        row: seatData.row,
-        number: seatData.number,
-        price: zonePrice
+  // Загружаем данные о местах с реальными ценами
+  useEffect(() => {
+    async function fetchSeatPrices() {
+      setLoading(true)
+      const allSeats: SeatWithPrice[] = []
+      
+      try {
+        for (const [zoneId, seatIds] of Object.entries(selectedSeats)) {
+          if (seatIds.length === 0) continue
+          
+          // Получаем данные о местах зоны
+          const response = await fetch(`/api/zones/${zoneId}/seats`)
+          if (!response.ok) continue
+          
+          const data = await response.json()
+          const zoneSeats = data.seats || []
+          
+          // Находим выбранные места и добавляем их с реальными ценами
+          seatIds.forEach(seatId => {
+            const seatData = zoneSeats.find((seat: any) => seat.id === seatId)
+            if (seatData) {
+              allSeats.push({
+                id: seatId,
+                zone: zoneId,
+                row: seatData.row,
+                number: seatData.number,
+                price: seatData.price || 0
+              })
+            }
+          })
+        }
+        
+        setSeatsWithPrices(allSeats)
+      } catch (error) {
+        console.error('Error fetching seat prices:', error)
+        // Fallback к старой логике с zonePrices
+        const fallbackSeats = Object.entries(selectedSeats).flatMap(([zoneId, seatIds]) => {
+          const zonePrice = zonePrices[zoneId] || 0
+          return seatIds.map(seatId => {
+            const [, row, number] = seatId.split('-')
+            return {
+              id: seatId,
+              zone: zoneId,
+              row: row || '',
+              number: number || '',
+              price: zonePrice
+            }
+          })
+        })
+        setSeatsWithPrices(fallbackSeats)
+      } finally {
+        setLoading(false)
       }
-    }).filter((ticket): ticket is NonNullable<typeof ticket> => ticket !== null)
-  })
+    }
+
+    fetchSeatPrices()
+  }, [selectedSeats, zonePrices])
+
+  const allTickets = seatsWithPrices
 
   const totalPrice = allTickets.reduce((sum, ticket) => sum + ticket.price, 0) + 
                      generalAccessTickets.reduce((sum, ticket) => sum + (ticket.price * ticket.quantity), 0)
@@ -65,7 +116,7 @@ const MobileSelectedTickets: React.FC<MobileSelectedTicketsProps> = ({ selectedS
                         <button
                           className="ml-1 w-4 h-4 sm:w-5 sm:h-5 flex items-center justify-center rounded-full bg-red-500/20 text-red-400 hover:bg-red-500/30 hover:text-red-300 transition-all duration-200 cursor-pointer border border-red-500/30 shrink-0"
                           onClick={() => onRemoveSeat(id)}
-                          aria-label="Удалить билет"
+                          aria-label="Șterge biletul"
                         >
                           <svg width="10" height="10" className="sm:w-3 sm:h-3" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg">
                             <path d="M12 4L4 12M4 4L12 12" stroke="currentColor" strokeWidth="2" strokeLinecap="round"/>
@@ -109,7 +160,11 @@ const MobileSelectedTickets: React.FC<MobileSelectedTicketsProps> = ({ selectedS
                   </div>
                 ))}
               </div>
-              <button className="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-2.5 sm:py-3 px-3 sm:px-4 rounded-lg transition-colors mt-2 sm:mt-3 text-sm sm:text-base">
+              <button 
+                onClick={onCheckout}
+                className="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-2.5 sm:py-3 px-3 sm:px-4 rounded-lg transition-colors mt-2 sm:mt-3 text-sm sm:text-base cursor-pointer"
+                disabled={totalTickets === 0}
+              >
                 Cumpără
               </button>
             </>
@@ -129,4 +184,4 @@ const MobileSelectedTickets: React.FC<MobileSelectedTicketsProps> = ({ selectedS
   )
 }
 
-export default MobileSelectedTickets 
+export default MobileSelectedTickets

@@ -1,0 +1,32 @@
+# maib e-commerce API
+
+Взаимодействие с **maib ecomm** происходит через HTTPS-запросы (POST / GET / DELETE) к эндпоинтам API с данными в формате JSON.
+
+Ответы, полученные в веб-сайте/приложении от **maib ecomm**, представляют собой HTTPS-запросы POST с данными в формате JSON.
+
+Все эндпоинты структурированы по следующему шаблону:&#x20;
+
+_{base-url}/{api-version}/{point}_
+
+Base URL: _https://api.maibmerchants.md_
+
+Текущая версия API: _v1_
+
+### Эндпоинты API
+
+<table><thead><tr><th width="456"> Эндпоинт</th><th>Описание</th></tr></thead><tbody><tr><td>https://api.maibmerchants.md/v1/generate-token</td><td><a href="generaciya-tokena-dostupa">Генерация Токена доступа</a></td></tr><tr><td>https://api.maibmerchants.md/v1/pay</td><td><a href="pryamoi-platezh">Прямой платеж</a></td></tr><tr><td>https://api.maibmerchants.md/v1/hold</td><td><a href="dvukhetapnyi-platezh/avtorizaciya-tranzakcii">Авторизация транзакции </a>(двухэтапные платежи)</td></tr><tr><td>https://api.maibmerchants.md/v1/complete</td><td><a href="dvukhetapnyi-platezh/zavershenie-tranzakcii">Завершение транзакции</a> (двухэтапные платежи)</td></tr><tr><td>https://api.maibmerchants.md/v1/refund</td><td><a href="vozvrat-platezha">Возврат платежа</a></td></tr><tr><td>https://api.maibmerchants.md/v1/pay-info</td><td><a href="informaciya-o-platezhe">Информация о платеже</a></td></tr><tr><td>https://api.maibmerchants.md/v1/savecard-recurring</td><td><a href="rekurrentnye-regulyarnye-platezhi/registraciya-karty-v-sisteme-maib-ecomm">Регистрация карты в <strong>maib ecomm</strong></a> (регулярные платежи)</td></tr><tr><td>https://api.maibmerchants.md/v1/execute-recurring</td><td><a href="rekurrentnye-regulyarnye-platezhi/vypolnenie-regulyarnogo-platezha">Выполнение регулярного платежа</a> (регулярные платежи)</td></tr><tr><td>https://api.maibmerchants.md/v1/savecard-oneclick</td><td><a href="one-click-platezhi/registraciya-karty-v-sisteme-maib-ecomm">Регистрация карты в <strong>maib ecomm</strong> </a>(one-click платежи)</td></tr><tr><td>https://api.maibmerchants.md/v1/execute-oneclick</td><td><a href="one-click-platezhi/vypolnenie-one-click-platezha">Выполнение one-click платежа</a> (one-click платежи)</td></tr><tr><td>https://api.maibmerchants.md/v1/delete-card</td><td><a href="udalenie-karty-iz-maib-ecomm">Удаление карты  из <strong>maib ecomm</strong></a> (регулярные и one-click платежи)</td></tr></tbody></table>
+
+### Взаимодействие через API
+
+1. Клиент заходит на сайт Мерчанта, выбирает товар или услугу, которую хочет купить, и добавляет в корзину.
+2. Покупатель нажимает кнопку «**Оплатить заказ**», и Мерчант отправляет HTTPS-запрос POST (с данными транзакции) на эндпоинт API **maib ecomm.**
+3. **maib ecomm** возвращает _промежуточный ответ_, содержащий ссылку (_payUrl_).
+4. Покупатель перенаправляется на ссылку _payUrl_ и попадает на страницу **maib ecomm checkout**.
+5. Покупатель вводит данные карты (или платит через Apple Pay / Google Pay).
+6. Система **maib ecomm** обрабатывает транзакцию.
+7. Покупатель перенаправляется обратно на сайт (на _okUrl_ или _failUrl_ в зависимости от статуса транзакции).
+8. Мерчант получает (на _callbackUrl_) _окончательный ответ_, содержащий статус и основные данные транзакции.
+
+### Postman Collection
+
+{% file src="https://1079170279-files.gitbook.io/~/files/v0/b/gitbook-x-prod.appspot.com/o/spaces%2FAT4z9CaFRZUR6GeFEd2i%2Fuploads%2FFx0QPuFb0vr0tJrJgw25%2FAPI_maib_e-commerce.postman_collection.zip?alt=media&token=678cbc71-8d9d-4e16-bd7b-4c41b8358ac5" %}
