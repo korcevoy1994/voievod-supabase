@@ -11,17 +11,29 @@ interface MaibConfig {
 interface PaymentRequest {
   amount: number;
   currency: string;
-  orderId: string;
-  description: string;
-  okUrl: string;
-  failUrl: string;
-  callbackUrl: string;
+  clientIp: string;
+  orderId?: string;
+  description?: string;
+  clientName?: string;
+  email?: string;
+  phone?: string;
+  delivery?: number;
+  items?: Array<{
+    id?: string;
+    name?: string;
+    price?: number;
+    quantity?: number;
+  }>;
+  okUrl?: string;
+  failUrl?: string;
+  callbackUrl?: string;
   language?: string;
 }
 
 interface PaymentResponse {
   payUrl: string;
-  transactionId: string;
+  payId: string;
+  orderId?: string;
 }
 
 interface PaymentInfo {
@@ -46,13 +58,6 @@ class MaibClient {
    * Генерация токена доступа
    */
   private async generateToken(): Promise<string> {
-    const timestamp = Math.floor(Date.now() / 1000);
-    const data = `${this.config.projectId}${timestamp}`;
-    const signature = crypto
-      .createHmac('sha256', this.config.signatureKey)
-      .update(data)
-      .digest('hex');
-
     const response = await fetch(`${this.baseUrl}/generate-token`, {
       method: 'POST',
       headers: {
@@ -60,17 +65,18 @@ class MaibClient {
       },
       body: JSON.stringify({
         projectId: this.config.projectId,
-        timestamp,
-        signature,
+        projectSecret: this.config.projectSecret,
       }),
     });
 
     if (!response.ok) {
-      throw new Error(`Failed to generate token: ${response.statusText}`);
+      const errorText = await response.text();
+      throw new Error(`Failed to generate token: ${response.status} ${response.statusText} - ${errorText}`);
     }
 
     const result = await response.json();
-    return result.token;
+    // MAIB API возвращает токен в result.accessToken
+    return result.result?.accessToken || result.accessToken || result.token;
   }
 
   /**
@@ -79,16 +85,28 @@ class MaibClient {
   async createPayment(paymentData: PaymentRequest): Promise<PaymentResponse> {
     const token = await this.generateToken();
 
-    const requestBody = {
-      amount: paymentData.amount,
+    // Подготавливаем тело запроса согласно документации MAIB
+    const requestBody: any = {
+      amount: paymentData.amount / 100, // Конвертируем из копеек в формат X.XX
       currency: paymentData.currency,
-      orderId: paymentData.orderId,
-      description: paymentData.description,
-      okUrl: paymentData.okUrl,
-      failUrl: paymentData.failUrl,
-      callbackUrl: paymentData.callbackUrl,
+      clientIp: paymentData.clientIp,
       language: paymentData.language || 'ru',
     };
+
+    // Добавляем опциональные параметры если они переданы
+    if (paymentData.orderId) requestBody.orderId = paymentData.orderId;
+    if (paymentData.description) requestBody.description = paymentData.description;
+    if (paymentData.clientName) requestBody.clientName = paymentData.clientName;
+    if (paymentData.email) requestBody.email = paymentData.email;
+    if (paymentData.phone) requestBody.phone = paymentData.phone;
+    if (paymentData.delivery) requestBody.delivery = paymentData.delivery;
+    if (paymentData.items) requestBody.items = paymentData.items;
+    if (paymentData.okUrl) requestBody.okUrl = paymentData.okUrl;
+    if (paymentData.failUrl) requestBody.failUrl = paymentData.failUrl;
+    if (paymentData.callbackUrl) requestBody.callbackUrl = paymentData.callbackUrl;
+
+    console.log('Final request body for MAIB API:', JSON.stringify(requestBody, null, 2));
+    console.log('Making request to:', `${this.baseUrl}/pay`);
 
     const response = await fetch(`${this.baseUrl}/pay`, {
       method: 'POST',
@@ -100,14 +118,47 @@ class MaibClient {
     });
 
     if (!response.ok) {
-      const errorData = await response.json();
-      throw new Error(`Payment creation failed: ${errorData.message || response.statusText}`);
+      let errorMessage = response.statusText;
+      try {
+        const responseText = await response.text();
+        if (responseText) {
+          try {
+            const errorData = JSON.parse(responseText);
+            // Проверяем структуру ошибок MAIB API
+            if (errorData.errors && Array.isArray(errorData.errors)) {
+              errorMessage = errorData.errors.map((err: any) => 
+                `${err.errorCode}: ${err.errorMessage}`
+              ).join(', ');
+            } else {
+              errorMessage = errorData.message || responseText;
+            }
+          } catch {
+            errorMessage = responseText;
+          }
+        }
+      } catch {
+        // Используем statusText если не можем прочитать ответ
+      }
+      throw new Error(`Payment creation failed: ${response.status} ${errorMessage}`);
     }
 
     const result = await response.json();
+    
+    // Проверяем успешность ответа
+    if (!result.ok) {
+      let errorMessage = 'Unknown error';
+      if (result.errors && Array.isArray(result.errors)) {
+        errorMessage = result.errors.map((err: any) => 
+          `${err.errorCode}: ${err.errorMessage}`
+        ).join(', ');
+      }
+      throw new Error(`Payment creation failed: ${errorMessage}`);
+    }
+
     return {
-      payUrl: result.payUrl,
-      transactionId: result.transactionId,
+      payUrl: result.result.payUrl,
+      payId: result.result.payId,
+      orderId: result.result.orderId,
     };
   }
 

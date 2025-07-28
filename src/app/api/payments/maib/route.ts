@@ -40,9 +40,15 @@ export async function POST(request: NextRequest) {
     // Создаем платеж через MAIB API
     const baseUrl = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000';
     
+    // Получаем IP адрес клиента
+    const clientIp = request.headers.get('x-forwarded-for')?.split(',')[0] || 
+                     request.headers.get('x-real-ip') || 
+                     '127.0.0.1';
+    
     const paymentData = {
       amount: Math.round(amount * 100), // MAIB принимает сумму в копейках
       currency,
+      clientIp,
       orderId,
       description: description || `Оплата заказа №${orderId}`,
       okUrl: `${baseUrl}/payment/success?orderId=${orderId}`,
@@ -61,10 +67,10 @@ export async function POST(request: NextRequest) {
         payment_method: 'maib',
         payment_provider: 'maib',
         status: 'pending',
-        provider_payment_id: paymentResponse.transactionId,
+        provider_payment_id: paymentResponse.payId,
         provider_data: {
           payUrl: paymentResponse.payUrl,
-          transactionId: paymentResponse.transactionId,
+          payId: paymentResponse.payId,
           orderId: orderId,
         },
         created_at: new Date().toISOString()
@@ -85,7 +91,7 @@ export async function POST(request: NextRequest) {
       .from('orders')
       .update({
         payment_method: 'maib',
-        maib_transaction_id: paymentResponse.transactionId,
+        maib_transaction_id: paymentResponse.payId,
         updated_at: new Date().toISOString()
       })
       .eq('id', orderId);
@@ -94,7 +100,7 @@ export async function POST(request: NextRequest) {
       success: true,
       paymentId: payment.id,
       payUrl: paymentResponse.payUrl,
-      transactionId: paymentResponse.transactionId,
+      transactionId: paymentResponse.payId,
     });
   } catch (error) {
     console.error('MAIB payment creation error:', error);

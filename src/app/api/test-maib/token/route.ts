@@ -17,6 +17,7 @@ export async function GET() {
     const testData = {
       amount: 100,
       currency: 'MDL',
+      clientIp: '127.0.0.1', // Тестовый IP
       orderId: 'test-token-generation',
       description: 'Тест генерации токена',
       okUrl: 'http://localhost:3000/test-success',

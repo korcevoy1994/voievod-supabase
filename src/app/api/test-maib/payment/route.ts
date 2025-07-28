@@ -6,10 +6,16 @@ export async function POST(request: Request) {
   try {
     const body = await request.json();
     
+    // Получаем IP адрес клиента
+    const clientIp = request.headers.get('x-forwarded-for')?.split(',')[0] || 
+                     request.headers.get('x-real-ip') || 
+                     '127.0.0.1';
+    
     // Данные по умолчанию для тестирования
     const testPaymentData = {
       amount: body.amount || 100, // 1 лей в банах
       currency: body.currency || 'MDL',
+      clientIp,
       orderId: body.orderId || `test-${Date.now()}`,
       description: body.description || 'Тестовый платеж MAIB',
       okUrl: body.okUrl || `${process.env.NEXT_PUBLIC_APP_URL}/test-maib?status=success`,
@@ -30,7 +36,7 @@ export async function POST(request: Request) {
       success: true,
       message: 'Платеж успешно создан',
       payment: {
-        transactionId: paymentResult.transactionId,
+        transactionId: paymentResult.payId,
         payUrl: paymentResult.payUrl,
         orderId: testPaymentData.orderId,
         amount: testPaymentData.amount,
