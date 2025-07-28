@@ -19,15 +19,14 @@ export async function GET(
   try {
     const { eventId } = await params
     
-    // Получаем ценообразование для события
+    // Получаем ценообразование для всех зон
     const { data: pricing, error } = await supabase
-      .from('zone_prices')
+      .from('zone_pricing')
       .select(`
         zone,
         base_price,
         row_multipliers
       `)
-      .eq('event_id', eventId)
       .order('zone')
 
     if (error) {
@@ -65,9 +64,8 @@ export async function PUT(
 
     // Обновляем или создаем ценообразование для зоны
     const { data, error } = await supabase
-      .from('zone_prices')
+      .from('zone_pricing')
       .upsert({
-        event_id: eventId,
         zone,
         base_price: basePrice,
         row_multipliers: rowMultipliers || {}
@@ -101,9 +99,8 @@ export async function DELETE(
 
     // Удаляем ценообразование для зоны
     const { error } = await supabase
-      .from('zone_prices')
+      .from('zone_pricing')
       .delete()
-      .eq('event_id', eventId)
       .eq('zone', zone)
 
     if (error) {

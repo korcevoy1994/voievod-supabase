@@ -4,6 +4,7 @@ import React, { useState, useEffect } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { motion } from 'framer-motion'
 import { getOrCreateSessionUserId, createTempUserData } from '@/lib/userSession'
+import { SecureSessionManager } from '@/lib/secureSessionManager'
 
 
 interface CheckoutSeat {
@@ -80,11 +81,36 @@ const CheckoutPage: React.FC = () => {
     setIsProcessing(true)
 
     try {
+      // Проверяем, что мы находимся в браузере
+      if (typeof window === 'undefined') {
+        throw new Error('Функция доступна только в браузере')
+      }
+
       // Получаем ID сессии пользователя
-      const sessionUserId = getOrCreateSessionUserId()
+      const sessionManager = new SecureSessionManager()
+      const sessionResult = sessionManager.getOrCreateSession()
+      
+      console.log('Session result:', sessionResult)
+      
+      if (!sessionResult || !sessionResult.sessionId || !sessionResult.userId) {
+        console.error('Ошибка создания сессии:', sessionResult)
+        throw new Error('Отсутствует ID сессии')
+      }
+      
+      // Дополнительная проверка, что сессия сохранилась
+      const currentSessionId = sessionManager.getCurrentSessionId()
+      if (!currentSessionId) {
+        console.error('Сессия не была сохранена в localStorage')
+        throw new Error('Ошибка сохранения сессии')
+      }
+      
+      const { sessionId } = sessionResult
+      
+      // Генерируем настоящий UUID для пользователя (функция create_temporary_user ожидает UUID)
+      const userId = crypto.randomUUID()
       
       // Создаем данные временного пользователя
-      const tempUserData = createTempUserData(sessionUserId, {
+      const tempUserData = createTempUserData(sessionId, {
         email: customerInfo.email,
         firstName: customerInfo.firstName,
         lastName: customerInfo.lastName,
@@ -104,9 +130,10 @@ const CheckoutPage: React.FC = () => {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
+          'x-session-id': sessionId,
         },
         body: JSON.stringify({
-          userId: sessionUserId,
+          userId: userId,
           customerInfo: {
             firstName: customerInfo.firstName,
             lastName: customerInfo.lastName,
@@ -135,6 +162,7 @@ const CheckoutPage: React.FC = () => {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
+            'x-session-id': sessionId,
           },
           body: JSON.stringify({
             paymentMethod: paymentMethod,

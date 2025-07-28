@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
+import { withProtectedAccess, withPublicAccess, validateRequestData, sanitizeInput } from '@/middleware/sessionMiddleware'
+import { SecureSessionManager } from '@/lib/secureSessionManager'
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!
 const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY!
@@ -36,7 +38,7 @@ interface CreateOrderRequest {
   paymentMethod: string
 }
 
-export async function POST(request: NextRequest) {
+export const POST = withProtectedAccess(async (request: NextRequest, sessionData: any) => {
   try {
     const body: CreateOrderRequest = await request.json()
     
@@ -50,12 +52,36 @@ export async function POST(request: NextRequest) {
       paymentMethod
     } = body
 
-    // Валидация данных
-    if (!userId || !customerInfo.email || !customerInfo.firstName || !customerInfo.lastName) {
+    // Валидация входящих данных
+    const validationSchema = {
+      userId: (value: any) => typeof value === 'string' && value.length > 0,
+      'customerInfo.email': (value: any) => typeof customerInfo?.email === 'string' && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(customerInfo.email),
+      'customerInfo.firstName': (value: any) => typeof customerInfo?.firstName === 'string' && customerInfo.firstName.length > 0,
+      'customerInfo.lastName': (value: any) => typeof customerInfo?.lastName === 'string' && customerInfo.lastName.length > 0
+    }
+
+    const validation = validateRequestData(body, validationSchema)
+    if (!validation.isValid) {
       return NextResponse.json(
-        { error: 'Отсутствуют обязательные поля' },
+        { error: 'Ошибка валидации данных', details: validation.errors },
         { status: 400 }
       )
+    }
+
+    // Проверка соответствия userId с сессией
+    if (sessionData && sessionData.userId !== userId) {
+      return NextResponse.json(
+        { error: 'Несоответствие ID пользователя' },
+        { status: 403 }
+      )
+    }
+
+    // Sanitize customer info
+    const sanitizedCustomerInfo = {
+      firstName: sanitizeInput(customerInfo.firstName),
+      lastName: sanitizeInput(customerInfo.lastName),
+      email: sanitizeInput(customerInfo.email?.toLowerCase()),
+      phone: customerInfo.phone ? sanitizeInput(customerInfo.phone) : undefined
     }
 
     // Проверяем, существует ли пользователь в таблице users
@@ -70,9 +96,9 @@ export async function POST(request: NextRequest) {
       const { error: userCreateError } = await supabase
         .rpc('create_temporary_user', {
           p_user_id: userId,
-          p_email: customerInfo.email,
-          p_full_name: `${customerInfo.firstName} ${customerInfo.lastName}`,
-          p_phone: customerInfo.phone || null
+          p_email: sanitizedCustomerInfo.email,
+          p_full_name: `${sanitizedCustomerInfo.firstName} ${sanitizedCustomerInfo.lastName}`,
+          p_phone: sanitizedCustomerInfo.phone || null
         })
 
       if (userCreateError) {
@@ -92,10 +118,10 @@ export async function POST(request: NextRequest) {
       .insert({
         id: crypto.randomUUID(),
         user_id: userId,
-        customer_email: customerInfo.email,
-        customer_first_name: customerInfo.firstName,
-        customer_last_name: customerInfo.lastName,
-        customer_phone: customerInfo.phone,
+        customer_email: sanitizedCustomerInfo.email,
+        customer_first_name: sanitizedCustomerInfo.firstName,
+        customer_last_name: sanitizedCustomerInfo.lastName,
+        customer_phone: sanitizedCustomerInfo.phone,
         total_price: totalPrice,
         total_tickets: totalTickets,
         payment_method: paymentMethod,
@@ -127,15 +153,38 @@ export async function POST(request: NextRequest) {
 
     // Сохраняем места в заказе
     if (seats.length > 0) {
-      const orderSeats = seats.map(seat => ({
-        id: crypto.randomUUID(),
-        order_id: orderId,
-        seat_id: seat.id,
-        zone: seat.zone,
-        row: seat.row,
-        number: seat.number,
-        price: seat.price
-      }))
+      const orderSeats = []
+      
+      // Получаем UUID мест из базы данных по zone, row, number
+      for (const seat of seats) {
+        const { data: seatData, error: seatError } = await supabase
+          .from('seats')
+          .select('id')
+          .eq('zone', seat.zone)
+          .eq('row', seat.row)
+          .eq('number', seat.number)
+          .single()
+        
+        if (seatError || !seatData) {
+          console.error(`Ошибка поиска места ${seat.zone}-${seat.row}-${seat.number}:`, seatError)
+          // Откатываем заказ
+          await supabase.from('orders').delete().eq('id', orderId)
+          return NextResponse.json(
+            { error: `Место ${seat.zone}-${seat.row}-${seat.number} не найдено` },
+            { status: 500 }
+          )
+        }
+        
+        orderSeats.push({
+          id: crypto.randomUUID(),
+          order_id: orderId,
+          seat_id: seatData.id, // Используем UUID из базы данных
+          zone: seat.zone,
+          row: seat.row,
+          number: seat.number,
+          price: seat.price
+        })
+      }
 
       const { error: seatsError } = await supabase
         .from('order_seats')
@@ -189,7 +238,6 @@ export async function POST(request: NextRequest) {
             expires_at: null,
             updated_at: new Date().toISOString() 
           })
-          .eq('event_id', '550e8400-e29b-41d4-a716-446655440000') // ID события
           .eq('zone', seat.zone)
           .eq('row', seat.row)
           .eq('number', seat.number)
@@ -201,23 +249,26 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    return NextResponse.json({
-      success: true,
-      orderId: orderId,
-      message: 'Заказ успешно создан'
-    })
+    return NextResponse.json(
+      {
+        success: true,
+        orderId: orderId,
+        message: 'Заказ успешно создан'
+      },
+      { status: 201 }
+    )
 
   } catch (error) {
-    console.error('Ошибка API создания заказа:', error)
+    console.error('Ошибка при создании заказа:', error)
     return NextResponse.json(
       { error: 'Внутренняя ошибка сервера' },
       { status: 500 }
     )
   }
-}
+})
 
 // Получение заказов пользователя
-export async function GET(request: NextRequest) {
+export const GET = withProtectedAccess(async (request: NextRequest, sessionData: any) => {
   try {
     const { searchParams } = new URL(request.url)
     const userId = searchParams.get('userId')
@@ -226,6 +277,14 @@ export async function GET(request: NextRequest) {
       return NextResponse.json(
         { error: 'Не указан ID пользователя' },
         { status: 400 }
+      )
+    }
+
+    // Проверка соответствия userId с сессией
+    if (sessionData && sessionData.userId !== userId) {
+      return NextResponse.json(
+        { error: 'Доступ запрещен' },
+        { status: 403 }
       )
     }
 
@@ -250,10 +309,10 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ orders })
 
   } catch (error) {
-    console.error('Ошибка API получения заказов:', error)
+    console.error('Ошибка при получении заказов:', error)
     return NextResponse.json(
       { error: 'Внутренняя ошибка сервера' },
       { status: 500 }
     )
   }
-}
+})

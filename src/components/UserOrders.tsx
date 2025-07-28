@@ -3,6 +3,7 @@
 import React, { useState, useEffect } from 'react'
 import { motion } from 'framer-motion'
 import { getCurrentSessionUserId } from '@/lib/userSession'
+import { SecureSessionManager } from '@/lib/secureSessionManager'
 
 interface OrderSeat {
   id: string
@@ -48,9 +49,9 @@ const UserOrders: React.FC<UserOrdersProps> = ({ className = '' }) => {
 
   useEffect(() => {
     const currentUserId = getCurrentSessionUserId()
-    setUserId(currentUserId)
     
     if (currentUserId) {
+      setUserId(currentUserId)
       fetchUserOrders(currentUserId)
     } else {
       setLoading(false)

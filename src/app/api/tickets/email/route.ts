@@ -36,8 +36,8 @@ interface Order {
   }>;
 }
 
-// Функция генерации PDF с новым дизайном
-const generatePDF = async (order: Order): Promise<Buffer> => {
+// Функция генерации PDF для одного билета
+const generateSingleTicketPDF = async (order: Order, ticketInfo: any, ticketIndex: number): Promise<Buffer> => {
   try {
     // Создаем PDF с размерами билета (666.75x1200px в пунктах)
     // 1 пункт = 1/72 дюйма, поэтому конвертируем пиксели в пункты
@@ -75,8 +75,8 @@ const generatePDF = async (order: Order): Promise<Buffer> => {
        doc.rect(0, 0, widthPt, heightPt, 'F');
      }
     
-    // Генерируем QR код
-     const qrData = `ORDER:${order.id}:${Date.now()}`;
+    // Генерируем уникальный QR код для каждого билета
+     const qrData = `ORDER:${order.id}:TICKET:${ticketIndex}:${Date.now()}`;
      const qrCodeDataURL = await QRCode.toDataURL(qrData, {
        width: 300,
        margin: 1,
@@ -105,24 +105,15 @@ const generatePDF = async (order: Order): Promise<Buffer> => {
     const centerX = infoX + (infoWidth / 2);
     let textY = infoY + (infoHeight / 2) - 10; // Центрируем по вертикали
     
-    // Информация о местах
-    if (order.order_seats && order.order_seats.length > 0) {
-      doc.setFontSize(24);
-      doc.setFont('helvetica', 'bold');
-      order.order_seats.forEach((seat, index) => {
-        const seatText = `ZONA: ${seat.zone}  •  RÂNDUL: ${seat.row}  •  LOC: ${seat.number}`;
-        doc.text(seatText, centerX, textY, { align: 'center' });
-        textY += 35;
-      });
-    }
+    // Добавляем информацию о конкретном билете
+    doc.setFontSize(24);
+    doc.setFont('helvetica', 'bold');
     
-    if (order.order_general_access && order.order_general_access.length > 0) {
-      doc.setFontSize(24);
-      doc.setFont('helvetica', 'bold');
-      order.order_general_access.forEach((ga, index) => {
-        doc.text(`${ga.name} x${ga.quantity}`, centerX, textY, { align: 'center' });
-        textY += 35;
-      });
+    if (ticketInfo.type === 'seat') {
+      const seatText = `ZONA: ${ticketInfo.zone}  •  RÂNDUL: ${ticketInfo.row}  •  LOC: ${ticketInfo.number}`;
+      doc.text(seatText, centerX, textY, { align: 'center' });
+    } else if (ticketInfo.type === 'general') {
+      doc.text(ticketInfo.name, centerX, textY, { align: 'center' });
     }
     
     // Возвращаем PDF как Buffer
@@ -131,6 +122,60 @@ const generatePDF = async (order: Order): Promise<Buffer> => {
   } catch (error) {
     throw error;
   }
+}
+
+// Функция генерации всех PDF билетов для заказа
+const generateAllTicketPDFs = async (order: Order): Promise<Array<{buffer: Buffer, filename: string}>> => {
+  const tickets = [];
+  let ticketIndex = 1;
+  const baseTimestamp = Date.now();
+  
+  // Генерируем PDF для каждого места
+  if (order.order_seats && order.order_seats.length > 0) {
+    for (const seat of order.order_seats) {
+      const ticketInfo = {
+        type: 'seat',
+        zone: seat.zone,
+        row: seat.row,
+        number: seat.number,
+        price: seat.price
+      };
+      
+      const pdfBuffer = await generateSingleTicketPDF(order, ticketInfo, ticketIndex);
+      // Добавляем небольшую задержку для уникальности timestamp
+      const uniqueTimestamp = baseTimestamp + ticketIndex;
+      tickets.push({
+        buffer: pdfBuffer,
+        filename: `bilet-${ticketIndex}-zona-${seat.zone}-rand-${seat.row}-loc-${seat.number}-${uniqueTimestamp}.pdf`
+      });
+      ticketIndex++;
+    }
+  }
+  
+  // Генерируем PDF для каждого билета общего доступа
+  if (order.order_general_access && order.order_general_access.length > 0) {
+    for (const ga of order.order_general_access) {
+      // Генерируем отдельный PDF для каждого билета в количестве
+      for (let i = 0; i < ga.quantity; i++) {
+        const ticketInfo = {
+          type: 'general',
+          name: ga.name,
+          price: ga.price
+        };
+        
+        const pdfBuffer = await generateSingleTicketPDF(order, ticketInfo, ticketIndex);
+        // Добавляем небольшую задержку для уникальности timestamp
+        const uniqueTimestamp = baseTimestamp + ticketIndex;
+        tickets.push({
+          buffer: pdfBuffer,
+          filename: `bilet-${ticketIndex}-${ga.name.replace(/\s+/g, '-').toLowerCase()}-${uniqueTimestamp}.pdf`
+        });
+        ticketIndex++;
+      }
+    }
+  }
+  
+  return tickets;
 }
 
 export async function POST(request: NextRequest) {
@@ -165,8 +210,8 @@ export async function POST(request: NextRequest) {
       )
     }
     
-    // Генерируем PDF
-    const pdfBuffer = await generatePDF(order)
+    // Генерируем все PDF билеты
+    const ticketPDFs = await generateAllTicketPDFs(order)
     
     // Настройка транспорта для отправки email
     const transporter = nodemailer.createTransport({
@@ -179,7 +224,14 @@ export async function POST(request: NextRequest) {
       }
     })
     
-    // Отправляем email с PDF вложением
+    // Создаем вложения для каждого билета
+    const attachments = ticketPDFs.map(ticket => ({
+      filename: ticket.filename,
+      content: ticket.buffer,
+      contentType: 'application/pdf'
+    }))
+    
+    // Отправляем email с PDF вложениями
     const mailOptions = {
       from: `"${process.env.EMAIL_FROM_NAME}" <${process.env.EMAIL_FROM_ADDRESS}>`,
       to: order.customer_email,
@@ -191,7 +243,7 @@ export async function POST(request: NextRequest) {
           
           <p>Bună ${order.customer_first_name},</p>
           
-          <p>Biletele tale pentru evenimentul VOEVODA sunt atașate la acest email.</p>
+          <p>Biletele tale pentru evenimentul VOEVODA sunt atașate la acest email. Fiecare bilet este într-un fișier PDF separat.</p>
           
           <div style="background-color: #f3f4f6; padding: 20px; border-radius: 8px; margin: 20px 0;">
             <h3 style="margin-top: 0; color: #374151;">Detalii comandă:</h3>
@@ -200,12 +252,14 @@ export async function POST(request: NextRequest) {
             <p><strong>Locația:</strong> Sala Polivalentă, Chișinău</p>
             <p><strong>Total bilete:</strong> ${order.total_tickets}</p>
             <p><strong>Total plătit:</strong> ${order.total_price} Lei</p>
+            <p><strong>Fișiere atașate:</strong> ${ticketPDFs.length} bilete PDF</p>
           </div>
           
           <p><strong>Instrucțiuni importante:</strong></p>
           <ul>
-            <li>Prezintă biletul PDF la intrare (pe telefon sau printat)</li>
-            <li>QR codul de pe bilet va fi scanat la intrare</li>
+            <li>Fiecare bilet este într-un fișier PDF separat</li>
+            <li>Prezintă fiecare bilet PDF la intrare (pe telefon sau printat)</li>
+            <li>QR codul de pe fiecare bilet va fi scanat la intrare</li>
             <li>Păstrează acest email pentru referințe viitoare</li>
           </ul>
           
@@ -217,13 +271,7 @@ export async function POST(request: NextRequest) {
           </p>
         </div>
       `,
-      attachments: [
-        {
-          filename: `ticket-${orderId}.pdf`,
-          content: pdfBuffer,
-          contentType: 'application/pdf'
-        }
-      ]
+      attachments: attachments
     }
     
     const info = await transporter.sendMail(mailOptions)

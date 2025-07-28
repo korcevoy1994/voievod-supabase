@@ -8,23 +8,39 @@ const supabase = createClient(
 
 export async function GET() {
   try {
-    // Временное решение: возвращаем статические данные зон
-    // TODO: После создания таблиц в Supabase заменить на запрос к БД
-    const zones = [
-      { id: '201', name: 'Зона 201', color: '#179240' },
-      { id: '202', name: 'Зона 202', color: '#8526d9' },
-      { id: '203', name: 'Зона 203', color: '#921792' },
-      { id: '204', name: 'Зона 204', color: '#921792' },
-      { id: '205', name: 'Зона 205', color: '#e7cb14' },
-      { id: '206', name: 'Зона 206', color: '#ea3446' },
-      { id: '207', name: 'Зона 207', color: '#ea3446' },
-      { id: '208', name: 'Зона 208', color: '#ea3446' },
-      { id: '209', name: 'Зона 209', color: '#e7cb14' },
-      { id: '210', name: 'Зона 210', color: '#921792' },
-      { id: '211', name: 'Зона 211', color: '#921792' },
-      { id: '212', name: 'Зона 212', color: '#8526d9' },
-      { id: '213', name: 'Зона 213', color: '#179240' }
-    ]
+    // Получаем уникальные зоны из таблицы seats
+    const { data: seatZones, error: seatsError } = await supabase
+      .from('seats')
+      .select('zone')
+      .order('zone')
+    
+    if (seatsError) {
+      console.error('Error fetching zones from seats:', seatsError)
+      return NextResponse.json({ error: 'Failed to fetch zones' }, { status: 500 })
+    }
+
+    // Получаем уникальные зоны
+    const uniqueZones = [...new Set(seatZones?.map(seat => seat.zone) || [])]
+    
+    // Получаем цвета и названия зон
+    const { data: zoneColors, error: colorsError } = await supabase
+      .from('zone_colors')
+      .select('zone, color, name')
+    
+    if (colorsError) {
+      console.error('Error fetching zone colors:', colorsError)
+    }
+
+    // Формируем результат
+    const zones = uniqueZones.map(zoneId => {
+      const zoneColor = zoneColors?.find(zc => zc.zone === zoneId)
+      return {
+        zone_id: zoneId,
+        id: zoneId, // для совместимости
+        name: zoneColor?.name || `Зона ${zoneId}`,
+        color: zoneColor?.color || '#8525D9'
+      }
+    })
 
     return NextResponse.json({ zones })
   } catch (error) {
