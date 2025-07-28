@@ -1,13 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { createClient } from '@supabase/supabase-js';
-
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_ROLE_KEY!
-);
+import { createSupabaseServerClient } from '@/lib/supabase-server';
 
 export async function POST(request: NextRequest) {
   try {
+    const supabase = createSupabaseServerClient();
     const { qrCode } = await request.json();
 
     if (!qrCode) {
@@ -67,6 +63,7 @@ export async function POST(request: NextRequest) {
 // GET endpoint для получения информации о билете по QR коду
 export async function GET(request: NextRequest) {
   try {
+    const supabase = createSupabaseServerClient();
     const { searchParams } = new URL(request.url);
     const qrCode = searchParams.get('qrCode');
 

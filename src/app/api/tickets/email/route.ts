@@ -1,14 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { createClient } from '@supabase/supabase-js'
 import nodemailer from 'nodemailer'
 import { jsPDF } from 'jspdf'
 import QRCode from 'qrcode'
 import path from 'path'
-
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_ROLE_KEY!
-)
+import { createSupabaseServerClient } from '@/lib/supabase-server'
 
 interface Order {
   id: string;
@@ -180,6 +175,7 @@ const generateAllTicketPDFs = async (order: Order): Promise<Array<{buffer: Buffe
 
 export async function POST(request: NextRequest) {
   try {
+    const supabase = createSupabaseServerClient();
     const { orderId } = await request.json()
     
     if (!orderId) {
