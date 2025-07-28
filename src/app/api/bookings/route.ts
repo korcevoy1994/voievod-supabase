@@ -1,14 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { createClient } from '@supabase/supabase-js';
-
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_ROLE_KEY!
-);
+import { createSupabaseServerClient } from '@/lib/supabase-server';
 
 // GET - получить все бронирования
 export async function GET(request: NextRequest) {
   try {
+    const supabase = createSupabaseServerClient();
     const { searchParams } = new URL(request.url);
     const userId = searchParams.get('userId');
     const eventId = searchParams.get('eventId');
@@ -59,6 +55,7 @@ export async function GET(request: NextRequest) {
 // POST - создать новое бронирование
 export async function POST(request: NextRequest) {
   try {
+    const supabase = createSupabaseServerClient();
     const body = await request.json();
     const { user_id, event_id, seat_ids, customer_info } = body;
 
@@ -158,6 +155,7 @@ export async function POST(request: NextRequest) {
 // PUT - обновить бронирование
 export async function PUT(request: NextRequest) {
   try {
+    const supabase = createSupabaseServerClient();
     const body = await request.json();
     const { id, status, ...updateData } = body;
 
@@ -207,6 +205,7 @@ export async function PUT(request: NextRequest) {
 // DELETE - удалить бронирование
 export async function DELETE(request: NextRequest) {
   try {
+    const supabase = createSupabaseServerClient();
     const { searchParams } = new URL(request.url);
     const id = searchParams.get('id');
 

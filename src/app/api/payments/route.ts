@@ -1,14 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { createClient } from '@supabase/supabase-js';
-
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_ROLE_KEY!
-);
+import { createSupabaseServerClient } from '@/lib/supabase-server';
 
 // GET - получить информацию о платежах
 export async function GET(request: NextRequest) {
   try {
+    const supabase = createSupabaseServerClient();
     const { searchParams } = new URL(request.url);
     const bookingId = searchParams.get('bookingId');
     const userId = searchParams.get('userId');
@@ -57,6 +53,7 @@ export async function GET(request: NextRequest) {
 // POST - создать платеж
 export async function POST(request: NextRequest) {
   try {
+    const supabase = createSupabaseServerClient();
     const body = await request.json();
     const { booking_id, payment_method, payment_provider = 'stripe' } = body;
 
@@ -155,6 +152,7 @@ export async function POST(request: NextRequest) {
 // PUT - обновить статус платежа
 export async function PUT(request: NextRequest) {
   try {
+    const supabase = createSupabaseServerClient();
     const body = await request.json();
     const { id, status, provider_payment_id, provider_data } = body;
 
@@ -266,6 +264,7 @@ export async function PUT(request: NextRequest) {
 // POST webhook для обработки уведомлений от платежных провайдеров
 export async function PATCH(request: NextRequest) {
   try {
+    const supabase = createSupabaseServerClient();
     const body = await request.json();
     const { provider, event_type, payment_id, status, data } = body;
 
