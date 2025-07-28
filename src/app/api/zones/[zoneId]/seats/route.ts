@@ -1,16 +1,12 @@
-import { createClient } from '@supabase/supabase-js'
 import { NextResponse } from 'next/server'
-
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_ROLE_KEY!
-)
+import { createSupabaseServerClient } from '@/lib/supabase-server'
 
 export async function GET(
   request: Request,
   { params }: { params: Promise<{ zoneId: string }> }
 ) {
   try {
+    const supabase = createSupabaseServerClient();
     const { zoneId } = await params
     
     // Получаем места для конкретной зоны
@@ -72,6 +68,7 @@ export async function GET(
 // Функция для получения цвета зоны из БД
 async function getZoneColor(zoneId: string): Promise<string> {
   try {
+    const supabase = createSupabaseServerClient();
     const { data, error } = await supabase
       .from('zone_colors')
       .select('color')

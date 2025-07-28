@@ -1,15 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { createClient } from '@supabase/supabase-js';
 import { maibClient } from '@/lib/maib-client';
-
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_ROLE_KEY!
-);
+import { createSupabaseServerClient } from '@/lib/supabase-server';
 
 // POST - создать MAIB платеж
 export async function POST(request: NextRequest) {
   try {
+    const supabase = createSupabaseServerClient();
     const body = await request.json();
     const { orderId, amount, currency = 'MDL', description } = body;
 
@@ -112,6 +108,7 @@ export async function POST(request: NextRequest) {
 // GET - получить статус MAIB платежа
 export async function GET(request: NextRequest) {
   try {
+    const supabase = createSupabaseServerClient();
     const { searchParams } = new URL(request.url);
     const transactionId = searchParams.get('transactionId');
 

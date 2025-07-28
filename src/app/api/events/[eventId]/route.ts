@@ -1,16 +1,12 @@
-import { createClient } from '@supabase/supabase-js'
 import { NextResponse } from 'next/server'
-
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_ROLE_KEY!
-)
+import { createSupabaseServerClient } from '@/lib/supabase-server'
 
 export async function GET(
   request: Request,
   { params }: { params: Promise<{ eventId: string }> }
 ) {
   try {
+    const supabase = createSupabaseServerClient();
     const { eventId } = await params
     
     // Получаем информацию о событии

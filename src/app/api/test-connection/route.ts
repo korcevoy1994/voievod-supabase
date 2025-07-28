@@ -1,14 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { createClient } from '@supabase/supabase-js';
-
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_ROLE_KEY!
-);
+import { createSupabaseServerClient } from '@/lib/supabase-server';
 
 // GET - тест подключения к Supabase
 export async function GET(request: NextRequest) {
   try {
+    const supabase = createSupabaseServerClient();
     // Простая проверка подключения к Supabase
     const { data, error } = await supabase
       .from('information_schema.tables')

@@ -1,11 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { createClient } from '@supabase/supabase-js';
 import { maibClient } from '@/lib/maib-client';
-
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_ROLE_KEY!
-);
+import { createSupabaseServerClient } from '@/lib/supabase-server';
 
 interface PaymentRequest {
   paymentMethod: string;
@@ -20,6 +15,7 @@ export async function POST(
   { params }: { params: { orderId: string } }
 ) {
   try {
+    const supabase = createSupabaseServerClient();
     const { orderId } = params;
     const body: PaymentRequest = await request.json();
     const { paymentMethod, paymentProvider = 'mock' } = body;
@@ -214,6 +210,7 @@ export async function GET(
   { params }: { params: { orderId: string } }
 ) {
   try {
+    const supabase = createSupabaseServerClient();
     const { orderId } = params;
 
     const { data: order, error } = await supabase
