@@ -38,7 +38,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Создаем платеж через MAIB API
-    const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || 'http://localhost:3000';
+    const baseUrl = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000';
     
     const paymentData = {
       amount: Math.round(amount * 100), // MAIB принимает сумму в копейках

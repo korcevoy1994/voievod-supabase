@@ -14,7 +14,7 @@ export async function POST(request: Request) {
       description: body.description || 'Тестовый платеж MAIB',
       okUrl: body.okUrl || `${process.env.NEXT_PUBLIC_APP_URL}/test-maib?status=success`,
       failUrl: body.failUrl || `${process.env.NEXT_PUBLIC_APP_URL}/test-maib?status=fail`,
-      callbackUrl: body.callbackUrl || `${process.env.NEXT_PUBLIC_APP_URL}/api/maib/callback`,
+      callbackUrl: body.callbackUrl || `${process.env.NEXT_PUBLIC_APP_URL}/api/payments/maib/callback`,
       language: body.language || 'ru'
     };
 

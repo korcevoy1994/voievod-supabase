@@ -192,9 +192,9 @@ class MaibClient {
 
 // Создаем экземпляр клиента
 const maibClient = new MaibClient({
-  projectId: process.env.projectId!,
-  projectSecret: process.env.projectSecret!,
-  signatureKey: process.env.signatureKey!,
+  projectId: process.env.MAIB_PROJECT_ID!,
+  projectSecret: process.env.MAIB_PROJECT_SECRET!,
+  signatureKey: process.env.MAIB_SIGNATURE_KEY!,
   isProduction: process.env.NODE_ENV === 'production',
 });
 

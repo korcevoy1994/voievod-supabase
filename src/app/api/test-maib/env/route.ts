@@ -4,9 +4,9 @@ import { NextResponse } from 'next/server';
 export async function GET() {
   try {
     const requiredEnvVars = {
-      projectId: process.env.projectId,
-      projectSecret: process.env.projectSecret,
-      signatureKey: process.env.signatureKey,
+      MAIB_PROJECT_ID: process.env.MAIB_PROJECT_ID,
+      MAIB_PROJECT_SECRET: process.env.MAIB_PROJECT_SECRET,
+      MAIB_SIGNATURE_KEY: process.env.MAIB_SIGNATURE_KEY,
       NEXT_PUBLIC_APP_URL: process.env.NEXT_PUBLIC_APP_URL,
     };
 

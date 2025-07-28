@@ -5,7 +5,7 @@ import { maibClient } from '@/lib/maib-client';
 export async function GET() {
   try {
     // Проверяем наличие необходимых переменных окружения
-    if (!process.env.projectId || !process.env.projectSecret || !process.env.signatureKey) {
+    if (!process.env.MAIB_PROJECT_ID || !process.env.MAIB_PROJECT_SECRET || !process.env.MAIB_SIGNATURE_KEY) {
       return NextResponse.json(
         { error: 'Отсутствуют обязательные переменные окружения MAIB' },
         { status: 400 }
@@ -33,7 +33,7 @@ export async function GET() {
         message: 'Токен успешно сгенерирован',
         token: 'Token generated successfully (hidden for security)',
         timestamp: new Date().toISOString(),
-        projectId: process.env.projectId
+        projectId: process.env.MAIB_PROJECT_ID
       });
     } catch (error: any) {
       // Если ошибка связана с токеном, это означает проблему с аутентификацией
