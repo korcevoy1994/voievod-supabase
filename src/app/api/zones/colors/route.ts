@@ -1,13 +1,9 @@
-import { createClient } from '@supabase/supabase-js'
 import { NextResponse } from 'next/server'
-
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_ROLE_KEY!
-)
+import { createSupabaseServerClient } from '@/lib/supabase-server'
 
 export async function GET() {
   try {
+    const supabase = createSupabaseServerClient()
     // Получаем цвета всех зон
     const { data: colors, error } = await supabase
       .from('zone_colors')
@@ -41,6 +37,7 @@ export async function GET() {
 
 export async function PUT(request: Request) {
   try {
+    const supabase = createSupabaseServerClient()
     const { zone, color, name } = await request.json()
 
     if (!zone || !color) {

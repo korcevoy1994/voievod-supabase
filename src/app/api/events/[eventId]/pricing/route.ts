@@ -1,10 +1,5 @@
-import { createClient } from '@supabase/supabase-js'
 import { NextResponse } from 'next/server'
-
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_ROLE_KEY!
-)
+import { createSupabaseServerClient } from '@/lib/supabase-server'
 
 interface ZonePricing {
   zone: string
@@ -17,6 +12,7 @@ export async function GET(
   { params }: { params: Promise<{ eventId: string }> }
 ) {
   try {
+    const supabase = createSupabaseServerClient()
     const { eventId } = await params
     
     // Получаем ценообразование для всех зон
@@ -55,6 +51,7 @@ export async function PUT(
   { params }: { params: Promise<{ eventId: string }> }
 ) {
   try {
+    const supabase = createSupabaseServerClient()
     const { eventId } = await params
     const { zone, basePrice, rowMultipliers } = await request.json()
 
@@ -89,6 +86,7 @@ export async function DELETE(
   { params }: { params: Promise<{ eventId: string }> }
 ) {
   try {
+    const supabase = createSupabaseServerClient()
     const { eventId } = await params
     const { searchParams } = new URL(request.url)
     const zone = searchParams.get('zone')

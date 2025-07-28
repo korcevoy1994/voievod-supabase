@@ -1,12 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { createClient } from '@supabase/supabase-js'
 import { withProtectedAccess, withPublicAccess, validateRequestData, sanitizeInput } from '@/middleware/sessionMiddleware'
 import { SecureSessionManager } from '@/lib/secureSessionManager'
-
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!
-const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY!
-
-const supabase = createClient(supabaseUrl, supabaseServiceKey)
+import { createSupabaseServerClient } from '@/lib/supabase-server'
 
 interface OrderSeat {
   id: string
@@ -40,6 +35,7 @@ interface CreateOrderRequest {
 
 export const POST = withProtectedAccess(async (request: NextRequest, sessionData: any) => {
   try {
+    const supabase = createSupabaseServerClient()
     const body: CreateOrderRequest = await request.json()
     
     const {
@@ -270,6 +266,7 @@ export const POST = withProtectedAccess(async (request: NextRequest, sessionData
 // Получение заказов пользователя
 export const GET = withProtectedAccess(async (request: NextRequest, sessionData: any) => {
   try {
+    const supabase = createSupabaseServerClient()
     const { searchParams } = new URL(request.url)
     const userId = searchParams.get('userId')
 
