@@ -1,6 +1,6 @@
 'use client'
 
-import React, { useState, useEffect } from 'react'
+import React, { useState, useEffect, Suspense } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { motion } from 'framer-motion'
 import { getOrCreateSessionUserId, createTempUserData } from '@/lib/userSession'
@@ -29,7 +29,7 @@ interface CheckoutData {
   totalTickets: number
 }
 
-const CheckoutPage: React.FC = () => {
+const CheckoutPageContent: React.FC = () => {
   const router = useRouter()
   const searchParams = useSearchParams()
   const [checkoutData, setCheckoutData] = useState<CheckoutData | null>(null)
@@ -420,6 +420,14 @@ const CheckoutPage: React.FC = () => {
         </motion.div>
       </div>
     </div>
+  )
+}
+
+const CheckoutPage: React.FC = () => {
+  return (
+    <Suspense fallback={<div className="bg-gradient-to-br from-gray-900 via-gray-800 to-black min-h-screen flex items-center justify-center"><div className="text-white">Loading...</div></div>}>
+      <CheckoutPageContent />
+    </Suspense>
   )
 }
 

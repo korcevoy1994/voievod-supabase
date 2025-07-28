@@ -1,10 +1,10 @@
 'use client'
 
-import React, { useState, useEffect } from 'react'
+import React, { useState, useEffect, Suspense } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { motion } from 'framer-motion'
 
-const CheckoutSuccessPage: React.FC = () => {
+const CheckoutSuccessPageContent: React.FC = () => {
   const router = useRouter()
   const searchParams = useSearchParams()
   const [orderId, setOrderId] = useState<string | null>(null)
@@ -358,6 +358,14 @@ const CheckoutSuccessPage: React.FC = () => {
         </motion.div>
       </motion.div>
     </div>
+  )
+}
+
+const CheckoutSuccessPage: React.FC = () => {
+  return (
+    <Suspense fallback={<div className="bg-gradient-to-br from-gray-900 via-gray-800 to-black min-h-screen flex items-center justify-center"><div className="text-white">Loading...</div></div>}>
+      <CheckoutSuccessPageContent />
+    </Suspense>
   )
 }
 

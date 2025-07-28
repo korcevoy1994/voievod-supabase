@@ -8,17 +8,17 @@ const supabase = createClient(
 
 export async function GET(
   request: Request,
-  { params }: { params: { eventId: string } }
+  { params }: { params: Promise<{ eventId: string }> }
 ) {
   try {
-    const { eventId } = params
+    const { eventId } = await params
     
     // Получаем информацию о событии
     const { data: event, error } = await supabase
       .from('events')
       .select(`
         id,
-        name,
+        title,
         description,
         event_date,
         venue,
