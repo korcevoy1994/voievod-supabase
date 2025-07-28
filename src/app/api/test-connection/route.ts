@@ -5,21 +5,31 @@ import { createSupabaseServerClient } from '@/lib/supabase-server';
 export async function GET(request: NextRequest) {
   try {
     const supabase = createSupabaseServerClient();
-    // Простая проверка подключения к Supabase
-    const { data, error } = await supabase
-      .from('information_schema.tables')
-      .select('table_name')
+    
+    // Проверяем подключение к базе данных
+    const { data: tablesData, error: tablesError } = await supabase
+      .from('users')
+      .select('id')
       .limit(1);
 
-    if (error) {
-      console.error('Supabase connection error:', error);
+    if (tablesError) {
+      console.error('Supabase connection error:', tablesError);
       return NextResponse.json({
         status: 'error',
         message: 'Failed to connect to Supabase',
-        error: error.message,
+        error: tablesError.message,
         timestamp: new Date().toISOString()
       }, { status: 500 });
     }
+
+    // Проверяем существование функции create_temporary_user
+    const { data: functionData, error: functionError } = await supabase
+      .rpc('create_temporary_user', {
+        p_user_id: '00000000-0000-0000-0000-000000000000',
+        p_email: 'test@example.com',
+        p_full_name: 'Test User',
+        p_phone: null
+      });
 
     // Проверяем аутентификацию
     const { data: authData, error: authError } = await supabase.auth.getUser();
@@ -35,8 +45,13 @@ export async function GET(request: NextRequest) {
       },
       database: {
         connected: true,
-        tables_accessible: !error,
+        tables_accessible: !tablesError,
         auth_status: authError ? 'No user session' : 'User session available'
+      },
+      function_test: {
+        create_temporary_user_exists: !functionError,
+        function_error: functionError?.message || null,
+        test_result: functionData || null
       }
     });
   } catch (error) {

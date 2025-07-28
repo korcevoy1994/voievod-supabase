@@ -204,23 +204,37 @@ CREATE OR REPLACE FUNCTION create_temporary_user(
   p_phone VARCHAR(20) DEFAULT NULL
 )
 RETURNS UUID AS $$
+DECLARE
+  existing_user_id UUID;
 BEGIN
-  INSERT INTO users (id, email, full_name, phone, is_temporary, temp_expires_at)
-  VALUES (
-    p_user_id,
-    p_email,
-    p_full_name,
-    p_phone,
-    TRUE,
-    NOW() + INTERVAL '2 days'
-  )
-  ON CONFLICT (id) DO UPDATE SET
-    email = EXCLUDED.email,
-    full_name = EXCLUDED.full_name,
-    phone = EXCLUDED.phone,
-    updated_at = NOW();
+  -- Check if user with this email already exists
+  SELECT id INTO existing_user_id FROM users WHERE email = p_email;
   
-  RETURN p_user_id;
+  IF existing_user_id IS NOT NULL THEN
+    -- User exists, update their information and return existing ID
+    UPDATE users SET
+      full_name = COALESCE(p_full_name, full_name),
+      phone = COALESCE(p_phone, phone),
+      is_temporary = TRUE,
+      temp_expires_at = NOW() + INTERVAL '2 days',
+      updated_at = NOW()
+    WHERE id = existing_user_id;
+    
+    RETURN existing_user_id;
+  ELSE
+    -- User doesn't exist, create new one
+    INSERT INTO users (id, email, full_name, phone, is_temporary, temp_expires_at)
+    VALUES (
+      p_user_id,
+      p_email,
+      p_full_name,
+      p_phone,
+      TRUE,
+      NOW() + INTERVAL '2 days'
+    );
+    
+    RETURN p_user_id;
+  END IF;
 END;
 $$ LANGUAGE plpgsql;
 

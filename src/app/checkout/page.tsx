@@ -202,6 +202,8 @@ const CheckoutPageContent: React.FC = () => {
       router.push('/checkout/success')
     } catch (error) {
       console.error('Ошибка обработки платежа:', error)
+      // Показываем пользователю детальную ошибку
+      alert(`Ошибка: ${error instanceof Error ? error.message : 'Неизвестная ошибка'}`)
     } finally {
       setIsProcessing(false)
     }

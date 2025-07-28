@@ -80,30 +80,69 @@ export const POST = withProtectedAccess(async (request: NextRequest, sessionData
       phone: customerInfo.phone ? sanitizeInput(customerInfo.phone) : undefined
     }
 
-    // Проверяем, существует ли пользователь в таблице users
-    const { data: existingUser } = await supabase
+    let actualUserId = userId;
+    
+    // Check if user with this email already exists
+    const { data: existingUsers, error: checkError } = await supabase
       .from('users')
       .select('id')
-      .eq('id', userId)
-      .single()
-
-    // Если пользователя нет, создаем временного
-    if (!existingUser) {
-      const { error: userCreateError } = await supabase
-        .rpc('create_temporary_user', {
-          p_user_id: userId,
-          p_email: sanitizedCustomerInfo.email,
-          p_full_name: `${sanitizedCustomerInfo.firstName} ${sanitizedCustomerInfo.lastName}`,
-          p_phone: sanitizedCustomerInfo.phone || null
+      .eq('email', sanitizedCustomerInfo.email)
+      .limit(1);
+    
+    if (checkError) {
+      console.error('Error checking existing user:', checkError);
+      return NextResponse.json(
+        { error: 'Ошибка проверки пользователя', details: checkError.message },
+        { status: 500 }
+      );
+    }
+    
+    if (existingUsers && existingUsers.length > 0) {
+      // User exists, use their ID and update their info
+      actualUserId = existingUsers[0].id;
+      
+      const { error: updateError } = await supabase
+        .from('users')
+        .update({
+          full_name: `${sanitizedCustomerInfo.firstName} ${sanitizedCustomerInfo.lastName}`,
+          phone: sanitizedCustomerInfo.phone,
+          is_temporary: true,
+          temp_expires_at: new Date(Date.now() + 2 * 24 * 60 * 60 * 1000).toISOString(), // 2 days from now
+          updated_at: new Date().toISOString()
         })
-
-      if (userCreateError) {
-        console.error('Ошибка создания временного пользователя:', userCreateError)
+        .eq('id', actualUserId);
+      
+      if (updateError) {
+        console.error('Error updating existing user:', updateError);
         return NextResponse.json(
-          { error: 'Ошибка создания пользователя' },
+          { error: 'Ошибка обновления пользователя', details: updateError.message },
           { status: 500 }
-        )
+        );
       }
+      
+      console.log('Updated existing user:', actualUserId);
+    } else {
+      // User doesn't exist, create new one
+      const { error: insertError } = await supabase
+        .from('users')
+        .insert({
+          id: userId,
+          email: sanitizedCustomerInfo.email,
+          full_name: `${sanitizedCustomerInfo.firstName} ${sanitizedCustomerInfo.lastName}`,
+          phone: sanitizedCustomerInfo.phone,
+          is_temporary: true,
+          temp_expires_at: new Date(Date.now() + 2 * 24 * 60 * 60 * 1000).toISOString() // 2 days from now
+        });
+      
+      if (insertError) {
+        console.error('Error creating new user:', insertError);
+        return NextResponse.json(
+          { error: 'Ошибка создания пользователя', details: insertError.message },
+          { status: 500 }
+        );
+      }
+      
+      console.log('Created new user:', userId);
     }
 
 
@@ -113,7 +152,7 @@ export const POST = withProtectedAccess(async (request: NextRequest, sessionData
       .from('orders')
       .insert({
         id: crypto.randomUUID(),
-        user_id: userId,
+        user_id: actualUserId,
         customer_email: sanitizedCustomerInfo.email,
         customer_first_name: sanitizedCustomerInfo.firstName,
         customer_last_name: sanitizedCustomerInfo.lastName,
