@@ -13,7 +13,7 @@ export async function POST(request: Request) {
     
     // Данные по умолчанию для тестирования
     const testPaymentData = {
-      amount: body.amount || 100, // 1 лей в банах
+      amount: body.amount || 100, // 100.00 MDL (лей)
       currency: body.currency || 'MDL',
       clientIp,
       orderId: body.orderId || `test-${Date.now()}`,
@@ -26,7 +26,7 @@ export async function POST(request: Request) {
 
     console.log('Attempting to create MAIB payment with data:', {
       ...testPaymentData,
-      amount: `${testPaymentData.amount} bani (${testPaymentData.amount / 100} ${testPaymentData.currency})`
+      amount: `${testPaymentData.amount} ${testPaymentData.currency}`
     });
 
     // Создаем платеж через MAIB клиент

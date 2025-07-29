@@ -42,6 +42,7 @@ export async function POST(request: NextRequest) {
       valid: ticketInfo.is_valid,
       ticket: {
         orderId: ticketInfo.order_id,
+        orderNumber: ticketInfo.short_order_number,
         customerName: ticketInfo.customer_name,
         eventTitle: ticketInfo.event_title,
         totalTickets: ticketInfo.total_tickets,
@@ -79,6 +80,7 @@ export async function GET(request: NextRequest) {
       .from('orders')
       .select(`
         id,
+        short_order_number,
         customer_first_name,
         customer_last_name,
         customer_email,
@@ -111,6 +113,7 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({
       order: {
         id: order.id,
+        orderNumber: order.short_order_number,
         customerName: `${order.customer_first_name} ${order.customer_last_name}`,
         customerEmail: order.customer_email,
         totalPrice: order.total_price,

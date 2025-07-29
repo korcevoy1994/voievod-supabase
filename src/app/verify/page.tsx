@@ -5,6 +5,7 @@ import { motion } from 'framer-motion'
 
 interface TicketInfo {
   orderId: string
+  orderNumber?: string
   customerName: string
   eventTitle: string
   totalTickets: number
@@ -161,7 +162,7 @@ const VerifyPage: React.FC = () => {
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-sm">
                       <div>
                         <span className="text-gray-400">Номер заказа:</span>
-                        <p className="text-white font-mono">{result.ticket.orderId.slice(0, 8)}...</p>
+                        <p className="text-white font-mono">{result.ticket.orderNumber || result.ticket.orderId.slice(0, 8) + '...'}</p>
                       </div>
                       <div>
                         <span className="text-gray-400">Покупатель:</span>

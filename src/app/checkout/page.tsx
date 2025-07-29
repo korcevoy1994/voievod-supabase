@@ -167,7 +167,6 @@ const CheckoutPageContent: React.FC = () => {
           body: JSON.stringify({
             paymentMethod: paymentMethod,
             paymentProvider: paymentProvider,
-            returnUrl: `${window.location.origin}/checkout/success?orderId=${orderResult.orderId}`,
             language: 'ro'
           })
         })
@@ -182,6 +181,9 @@ const CheckoutPageContent: React.FC = () => {
         if (paymentResult.requiresRedirect && paymentResult.payUrl) {
           // Сохраняем ID заказа для возврата
           localStorage.setItem('last_order_id', orderResult.orderId)
+          if (orderResult.orderNumber) {
+            localStorage.setItem('last_order_number', orderResult.orderNumber)
+          }
           
           // Перенаправляем на страницу оплаты MAIB
           window.location.href = paymentResult.payUrl
@@ -191,6 +193,9 @@ const CheckoutPageContent: React.FC = () => {
       
       // Сохраняем ID заказа для страницы успеха
       localStorage.setItem('last_order_id', orderResult.orderId)
+      if (orderResult.orderNumber) {
+        localStorage.setItem('last_order_number', orderResult.orderNumber)
+      }
       
       // Очищаем данные корзины после успешной покупки
       localStorage.removeItem('checkout_data')

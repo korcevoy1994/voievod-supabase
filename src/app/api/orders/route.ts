@@ -163,7 +163,7 @@ export const POST = withProtectedAccess(async (request: NextRequest, sessionData
         status: 'pending',
         created_at: new Date().toISOString()
       })
-      .select()
+      .select('id, short_order_number')
       .single()
 
     if (orderError) {
@@ -269,7 +269,7 @@ export const POST = withProtectedAccess(async (request: NextRequest, sessionData
           .from('seats')
           .update({ 
             status: 'sold', 
-            reserved_by: userId,
+            reserved_by: actualUserId,
             expires_at: null,
             updated_at: new Date().toISOString() 
           })
@@ -288,6 +288,7 @@ export const POST = withProtectedAccess(async (request: NextRequest, sessionData
       {
         success: true,
         orderId: orderId,
+        orderNumber: orderData.short_order_number,
         message: 'Заказ успешно создан'
       },
       { status: 201 }

@@ -42,7 +42,7 @@ export async function POST(request: NextRequest) {
     
     // Используем метод createPayment класса MaibClient
     const result = await maibClient.createPayment({
-      amount: paymentData.amount * 100, // Конвертируем в копейки
+      amount: paymentData.amount, // MAIB принимает сумму в формате X.XX (лей)
       currency: paymentData.currency,
       clientIp: paymentData.clientIp,
       language: paymentData.language,

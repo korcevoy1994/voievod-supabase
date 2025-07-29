@@ -11,12 +11,12 @@ interface PaymentRequest {
 
 // POST - обработать платеж для заказа
 export async function POST(
-  request: NextRequest,
-  { params }: { params: { orderId: string } }
+  request: Request,
+  { params }: { params: Promise<{ orderId: string }> }
 ) {
   try {
     const supabase = createSupabaseServerClient();
-    const { orderId } = params;
+    const { orderId } = await params;
     const body: PaymentRequest = await request.json();
     const { paymentMethod, paymentProvider = 'mock' } = body;
 
@@ -51,19 +51,42 @@ export async function POST(
     // Обрабатываем платеж в зависимости от провайдера
     if (paymentProvider === 'maib') {
       try {
+        // Получаем IP адрес клиента
+        let clientIp = request.headers.get('x-forwarded-for')?.split(',')[0] ||
+                        request.headers.get('x-real-ip') ||
+                        request.headers.get('cf-connecting-ip') ||
+                        '192.168.1.1'; // Используем валидный IP вместо localhost
+        
+        // Конвертируем IPv6 localhost в IPv4
+        if (clientIp === '::1' || clientIp === '127.0.0.1') {
+          clientIp = '192.168.1.1'; // MAIB может не принимать localhost IP
+        }
+        
+        console.log('Client IP for MAIB:', clientIp);
+        console.log('Order total_price:', order.total_price, 'type:', typeof order.total_price);
+        
         // Создаем платеж через MAIB
         const callbackUrl = `${process.env.NEXT_PUBLIC_APP_URL}/api/payments/maib/callback`;
-        const returnUrl = body.returnUrl || `${process.env.NEXT_PUBLIC_APP_URL}/orders/${orderId}/success`;
+        const baseUrl = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000';
+        const successUrl = `${baseUrl}/checkout/success?orderId=${orderId}`;
+        const failUrl = `${baseUrl}/checkout/fail?orderId=${orderId}`;
+        
+        // Убеждаемся, что amount является числом
+        const amount = typeof order.total_price === 'string' ? 
+          parseFloat(order.total_price) : order.total_price;
+        
+        console.log('Final amount for MAIB:', amount, 'type:', typeof amount);
         
         const maibPayment = await maibClient.createPayment({
-           amount: order.total_price,
+           amount: amount,
            currency: 'MDL',
            description: `Оплата заказа #${orderId}`,
            orderId: orderId,
-           okUrl: returnUrl,
-           failUrl: returnUrl,
+           okUrl: successUrl,
+           failUrl: failUrl,
            callbackUrl,
-           language: body.language || 'ro'
+           language: body.language || 'ro',
+           clientIp: clientIp
          });
 
          if (!maibPayment.payUrl) {
@@ -79,23 +102,22 @@ export async function POST(
 
         // Сохраняем информацию о платеже в базе данных
         const { data: payment, error: paymentError } = await supabase
-          .from('payments')
+          .from('order_payments')
           .insert({
             order_id: orderId,
             amount: order.total_price,
-            currency: 'MDL',
-            provider: 'maib',
-            provider_payment_id: maibPayment.transactionId,
+            payment_method: paymentMethod,
+            payment_provider: 'maib',
+            provider_payment_id: maibPayment.payId,
             status: 'pending',
             provider_data: {
               payUrl: maibPayment.payUrl,
-              transactionId: maibPayment.transactionId,
+              transactionId: maibPayment.payId,
               callbackUrl,
-              returnUrl,
+              successUrl,
+              failUrl,
               language: body.language || 'ro'
-            },
-            created_at: new Date().toISOString(),
-            updated_at: new Date().toISOString()
+            }
           })
           .select()
           .single();
@@ -127,7 +149,7 @@ export async function POST(
           message: 'Payment created successfully',
           paymentId: payment.id,
           payUrl: maibPayment.payUrl,
-          transactionId: maibPayment.transactionId,
+          transactionId: maibPayment.payId,
           requiresRedirect: true
         });
       } catch (error) {
@@ -207,12 +229,13 @@ export async function POST(
 // GET - получить статус платежа заказа
 export async function GET(
   request: NextRequest,
-  { params }: { params: { orderId: string } }
+  { params }: { params: Promise<{ orderId: string }> }
 ) {
   try {
     const supabase = createSupabaseServerClient();
-    const { orderId } = params;
+    const { orderId } = await params;
 
+    // Получаем заказ
     const { data: order, error } = await supabase
       .from('orders')
       .select('id, status, payment_method, total_price, created_at, updated_at')
@@ -226,6 +249,15 @@ export async function GET(
       );
     }
 
+    // Получаем детали платежа
+    const { data: payments, error: paymentsError } = await supabase
+      .from('order_payments')
+      .select('*')
+      .eq('order_id', orderId)
+      .order('created_at', { ascending: false });
+
+    const latestPayment = payments && payments.length > 0 ? payments[0] : null;
+
     return NextResponse.json({
       orderId: order.id,
       status: order.status,
@@ -233,7 +265,20 @@ export async function GET(
       totalPrice: order.total_price,
       isPaid: order.status === 'paid',
       createdAt: order.created_at,
-      updatedAt: order.updated_at
+      updatedAt: order.updated_at,
+      // Детали платежа для отладки
+      paymentDetails: latestPayment ? {
+        id: latestPayment.id,
+        status: latestPayment.status,
+        amount: latestPayment.amount,
+        provider: latestPayment.provider,
+        providerPaymentId: latestPayment.provider_payment_id,
+        providerData: latestPayment.provider_data,
+        createdAt: latestPayment.created_at,
+        updatedAt: latestPayment.updated_at,
+        completedAt: latestPayment.completed_at
+      } : null,
+      allPayments: payments || []
     });
   } catch (error) {
     console.error('Error getting payment status:', error);

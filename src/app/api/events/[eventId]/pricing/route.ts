@@ -15,7 +15,7 @@ export async function GET(
     const supabase = createSupabaseServerClient()
     const { eventId } = await params
     
-    // Получаем ценообразование для всех зон
+    // Получаем ценообразование для всех зон конкретного события
     const { data: pricing, error } = await supabase
       .from('zone_pricing')
       .select(`
@@ -23,6 +23,7 @@ export async function GET(
         base_price,
         row_multipliers
       `)
+      .eq('event_id', eventId)
       .order('zone')
 
     if (error) {
@@ -63,6 +64,7 @@ export async function PUT(
     const { data, error } = await supabase
       .from('zone_pricing')
       .upsert({
+        event_id: eventId,
         zone,
         base_price: basePrice,
         row_multipliers: rowMultipliers || {}
@@ -95,10 +97,11 @@ export async function DELETE(
       return NextResponse.json({ error: 'Zone parameter is required' }, { status: 400 })
     }
 
-    // Удаляем ценообразование для зоны
+    // Удаляем ценообразование для зоны конкретного события
     const { error } = await supabase
       .from('zone_pricing')
       .delete()
+      .eq('event_id', eventId)
       .eq('zone', zone)
 
     if (error) {

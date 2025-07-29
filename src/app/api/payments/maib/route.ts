@@ -46,7 +46,7 @@ export async function POST(request: NextRequest) {
                      '127.0.0.1';
     
     const paymentData = {
-      amount: Math.round(amount * 100), // MAIB принимает сумму в копейках
+      amount: parseFloat(amount.toFixed(2)), // MAIB принимает сумму в формате X.XX (лей)
       currency,
       clientIp,
       orderId,
@@ -60,11 +60,11 @@ export async function POST(request: NextRequest) {
 
     // Сохраняем информацию о платеже в базе данных
     const { data: payment, error: paymentError } = await supabase
-      .from('payments')
+      .from('order_payments')
       .insert({
-        booking_id: null, // Для заказов booking_id может быть null
+        order_id: orderId,
         amount: amount,
-        payment_method: 'maib',
+        payment_method: 'card',
         payment_provider: 'maib',
         status: 'pending',
         provider_payment_id: paymentResponse.payId,
@@ -130,7 +130,7 @@ export async function GET(request: NextRequest) {
 
     // Обновляем статус в нашей базе данных
     const { data: payment, error: paymentError } = await supabase
-      .from('payments')
+      .from('order_payments')
       .select('*')
       .eq('provider_payment_id', transactionId)
       .single();
@@ -165,7 +165,7 @@ export async function GET(request: NextRequest) {
     // Обновляем статус если он изменился
     if (status !== payment.status) {
       await supabase
-        .from('payments')
+        .from('order_payments')
         .update({
           status,
           provider_data: {
@@ -185,7 +185,7 @@ export async function GET(request: NextRequest) {
             status: 'paid',
             updated_at: new Date().toISOString()
           })
-          .eq('id', paymentInfo.orderId);
+          .eq('id', payment.order_id);
       }
     }
 

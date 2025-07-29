@@ -8,18 +8,44 @@ const CheckoutSuccessPageContent: React.FC = () => {
   const router = useRouter()
   const searchParams = useSearchParams()
   const [orderId, setOrderId] = useState<string | null>(null)
+  const [orderNumber, setOrderNumber] = useState<string | null>(null)
   const [downloadingPdf, setDownloadingPdf] = useState(false)
   const [sendingEmail, setSendingEmail] = useState(false)
   const [paymentStatus, setPaymentStatus] = useState<'checking' | 'success' | 'failed'>('checking')
 
+  const fetchOrderDetails = async (orderIdToFetch: string) => {
+    try {
+      const response = await fetch(`/api/orders/${orderIdToFetch}`)
+      if (response.ok) {
+        const data = await response.json()
+        if (data.order && data.order.short_order_number) {
+          setOrderNumber(data.order.short_order_number)
+        }
+      }
+    } catch (error) {
+      console.error('Error fetching order details:', error)
+    }
+  }
+
   useEffect(() => {
     // Проверяем, есть ли orderId в URL параметрах (возврат от MAIB)
     const urlOrderId = searchParams.get('orderId')
+    const payId = searchParams.get('payId')
     
     if (urlOrderId) {
       setOrderId(urlOrderId)
-      // Проверяем статус платежа
-      checkPaymentStatus(urlOrderId)
+      fetchOrderDetails(urlOrderId)
+      
+      // Если есть payId, это означает возврат от MAIB
+      // Но пользователь попал на success страницу, хотя платеж мог быть неуспешным
+      // Проверяем реальный статус платежа
+      if (payId) {
+        checkPaymentStatus(urlOrderId)
+      } else {
+        // Обычный success flow без MAIB параметров
+        setPaymentStatus('success')
+      }
+      
       // Очищаем данные корзины после возврата от MAIB
       localStorage.removeItem('checkout_data')
       localStorage.removeItem('voevoda_reservations')
@@ -28,11 +54,18 @@ const CheckoutSuccessPageContent: React.FC = () => {
     } else {
       // Получаем ID последнего заказа из localStorage (обычный flow)
       const lastOrderId = localStorage.getItem('last_order_id')
+      const lastOrderNumber = localStorage.getItem('last_order_number')
       if (lastOrderId) {
         setOrderId(lastOrderId)
+        if (lastOrderNumber) {
+          setOrderNumber(lastOrderNumber)
+        } else {
+          fetchOrderDetails(lastOrderId)
+        }
         setPaymentStatus('success')
         // Очищаем ID заказа после получения
         localStorage.removeItem('last_order_id')
+        localStorage.removeItem('last_order_number')
       }
     }
   }, [searchParams])
@@ -45,14 +78,20 @@ const CheckoutSuccessPageContent: React.FC = () => {
         if (data.isPaid) {
           setPaymentStatus('success')
         } else {
-          setPaymentStatus('failed')
+          // Если платеж неуспешный, перенаправляем на fail страницу
+          router.push(`/checkout/fail?orderId=${orderIdToCheck}`)
+          return
         }
       } else {
-        setPaymentStatus('failed')
+        // Если ошибка API, перенаправляем на fail страницу
+        router.push(`/checkout/fail?orderId=${orderIdToCheck}`)
+        return
       }
     } catch (error) {
       console.error('Error checking payment status:', error)
-      setPaymentStatus('failed')
+      // Если ошибка сети, перенаправляем на fail страницу
+      router.push(`/checkout/fail?orderId=${orderIdToCheck}`)
+      return
     }
   }
 
@@ -274,7 +313,7 @@ const CheckoutSuccessPageContent: React.FC = () => {
           Mulțumim pentru cumpărare! Biletele tale au fost confirmate și plata a fost procesată cu succes.
         </motion.p>
 
-        {orderId && (
+        {(orderNumber || orderId) && (
           <motion.div
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
@@ -282,7 +321,7 @@ const CheckoutSuccessPageContent: React.FC = () => {
             className="bg-gray-700 rounded-lg p-4 mb-6"
           >
             <p className="text-sm text-gray-400 mb-1">Numărul comenzii:</p>
-            <p className="text-white font-mono text-lg">{orderId}</p>
+            <p className="text-white font-mono text-lg">{orderNumber || orderId}</p>
           </motion.div>
         )}
 

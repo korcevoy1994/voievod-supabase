@@ -87,7 +87,7 @@ class MaibClient {
 
     // Подготавливаем тело запроса согласно документации MAIB
     const requestBody: any = {
-      amount: paymentData.amount / 100, // Конвертируем из копеек в формат X.XX
+      amount: paymentData.amount, // Сумма уже в правильном формате (лей)
       currency: paymentData.currency,
       clientIp: paymentData.clientIp,
       language: paymentData.language || 'ru',
@@ -229,15 +229,42 @@ class MaibClient {
    * Проверка подписи callback уведомления
    */
   verifyCallback(data: any, signature: string): boolean {
-    const sortedKeys = Object.keys(data).sort();
-    const dataString = sortedKeys.map(key => `${key}=${data[key]}`).join('&');
-    
-    const expectedSignature = crypto
-      .createHmac('sha256', this.config.signatureKey)
-      .update(dataString)
-      .digest('hex');
+    try {
+      // Согласно документации MAIB, данные приходят в объекте 'result'
+      const resultData = data.result || data;
+      
+      // Сортируем параметры по алфавиту, исключая поле signature
+      const sortedKeys = Object.keys(resultData)
+        .filter(key => key !== 'signature')
+        .sort();
+      
+      // Создаем строку из значений параметров, разделенных ':'
+      const values = sortedKeys.map(key => String(resultData[key]));
+      
+      // Добавляем signature key в конец
+      values.push(this.config.signatureKey);
+      
+      // Объединяем все значения через ':'
+      const signString = values.join(':');
+      
+      // Генерируем хэш SHA256 и конвертируем в base64
+      const expectedSignature = crypto
+        .createHash('sha256')
+        .update(signString)
+        .digest('base64');
 
-    return signature === expectedSignature;
+      console.log('Callback verification:', {
+        receivedSignature: signature,
+        expectedSignature,
+        signString: signString.substring(0, 100) + '...', // Логируем только начало для безопасности
+        sortedKeys
+      });
+
+      return signature === expectedSignature;
+    } catch (error) {
+      console.error('Error verifying callback signature:', error);
+      return false;
+    }
   }
 }
 

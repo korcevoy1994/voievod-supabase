@@ -23,6 +23,7 @@ interface OrderGeneralAccess {
 
 interface Order {
   id: string
+  short_order_number?: string
   customer_email: string
   customer_first_name: string
   customer_last_name: string
@@ -223,7 +224,7 @@ const UserOrders: React.FC<UserOrdersProps> = ({ className = '' }) => {
               <div className="flex justify-between items-start mb-3">
                 <div>
                   <h3 className="text-white font-semibold">
-                    Comandă #{order.id.slice(0, 8)}
+                    Comandă #{order.short_order_number || order.id.slice(0, 8)}
                   </h3>
                   <p className="text-gray-400 text-sm">
                     {formatDate(order.created_at)}

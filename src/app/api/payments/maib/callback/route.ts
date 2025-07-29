@@ -7,7 +7,22 @@ export async function POST(request: NextRequest) {
   try {
     const supabase = createSupabaseServerClient();
     const body = await request.json();
-    const signature = request.headers.get('x-maib-signature') || '';
+    
+    console.log('MAIB callback received:', {
+      headers: Object.fromEntries(request.headers.entries()),
+      body: JSON.stringify(body, null, 2)
+    });
+    
+    // Согласно документации MAIB, подпись приходит в теле запроса
+    const signature = body.signature || request.headers.get('x-maib-signature') || '';
+    
+    if (!signature) {
+      console.error('No signature provided in MAIB callback');
+      return NextResponse.json(
+        { error: 'No signature provided' },
+        { status: 400 }
+      );
+    }
 
     // Проверяем подпись callback
     if (!maibClient.verifyCallback(body, signature)) {
@@ -18,16 +33,21 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    // Согласно документации MAIB, данные приходят в объекте 'result'
+    const resultData = body.result || body;
     const {
-      transactionId,
+      payId: transactionId,
       status,
       amount,
       currency,
       orderId,
-      paymentDate,
-      errorCode,
-      errorMessage
-    } = body;
+      statusCode,
+      statusMessage,
+      rrn,
+      approval,
+      cardNumber,
+      threeDs
+    } = resultData;
 
     if (!transactionId) {
       return NextResponse.json(
@@ -38,7 +58,7 @@ export async function POST(request: NextRequest) {
 
     // Находим платеж в нашей базе данных
     const { data: payment, error: paymentError } = await supabase
-      .from('payments')
+      .from('order_payments')
       .select('*')
       .eq('provider_payment_id', transactionId)
       .single();
@@ -54,6 +74,7 @@ export async function POST(request: NextRequest) {
     // Маппинг статусов MAIB на наши статусы
     let newStatus = payment.status;
     switch (status) {
+      case 'OK':
       case 'COMPLETED':
       case 'SUCCESS':
       case 'APPROVED':
@@ -84,12 +105,15 @@ export async function POST(request: NextRequest) {
       provider_data: {
         ...payment.provider_data,
         status,
+        statusCode,
+        statusMessage,
         amount,
         currency,
         orderId,
-        paymentDate,
-        errorCode,
-        errorMessage,
+        rrn,
+        approval,
+        cardNumber,
+        threeDs,
         callbackReceived: new Date().toISOString()
       },
       updated_at: new Date().toISOString()
@@ -100,7 +124,7 @@ export async function POST(request: NextRequest) {
     }
 
     const { error: updateError } = await supabase
-      .from('payments')
+      .from('order_payments')
       .update(updateData)
       .eq('id', payment.id);
 
@@ -113,7 +137,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Обновляем статус заказа в зависимости от статуса платежа
-    if (orderId) {
+    if (payment.order_id) {
       let orderStatus = 'pending';
       
       switch (newStatus) {
@@ -132,7 +156,7 @@ export async function POST(request: NextRequest) {
           status: orderStatus,
           updated_at: new Date().toISOString()
         })
-        .eq('id', orderId);
+        .eq('id', payment.order_id);
 
       if (orderUpdateError) {
         console.error('Error updating order status:', orderUpdateError);
@@ -143,12 +167,12 @@ export async function POST(request: NextRequest) {
         const { data: order } = await supabase
           .from('orders')
           .select('qr_code')
-          .eq('id', orderId)
+          .eq('id', payment.order_id)
           .single();
 
         if (order && !order.qr_code) {
           const { error: qrError } = await supabase.rpc('generate_order_qr_code', {
-            p_order_id: orderId
+            p_order_id: payment.order_id
           });
 
           if (qrError) {
