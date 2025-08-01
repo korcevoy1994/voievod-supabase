@@ -1,138 +1,168 @@
-import fs from 'fs/promises';
+#!/usr/bin/env node
+
+import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
-const CWD = process.cwd();
 
-// Путь к директории с данными о местах
-const DATA_DIR = path.join(CWD, 'src/data');
-const OUTPUT_FILE = path.join(CWD, 'supabase-seats-export.sql');
+// Путь к папке с данными
+const dataDir = path.join(__dirname, '../src/data');
+const outputFile = path.join(__dirname, '../supabase-seats-export.sql');
 
-// Функция для извлечения данных о местах из TypeScript файла
-function extractSeatDataFromFile(content) {
-  // Ищем массив данных о местах
-  const match = content.match(/export const zone\d+SeatData: SeatData\[\] = \[([\s\S]*?)\];/);
-  if (!match) {
-    throw new Error('Не удалось найти данные о местах в файле');
-  }
+// ID события для которого экспортируем места
+const EVENT_ID = '550e8400-e29b-41d4-a716-446655440000';
 
-  const seatDataString = match[1];
-  const seats = [];
-
-  // Парсим каждое место
-  const seatMatches = seatDataString.matchAll(/\{\s*id:\s*'([^']+)',\s*row:\s*'([^']+)',\s*number:\s*'([^']+)',\s*x:\s*(\d+),\s*y:\s*(\d+),\s*status:\s*'([^']+)',\s*fill:\s*'([^']+)'\s*\}/g);
-  
-  for (const seatMatch of seatMatches) {
-    const [, id, row, number, x, y, status, fill] = seatMatch;
-    seats.push({
-      id,
-      row,
-      number,
-      x: parseInt(x),
-      y: parseInt(y),
-      status,
-      fill
-    });
-  }
-
-  return seats;
+// Функция для получения цены места на основе зоны
+function getSeatPrice(zone) {
+  const zonePrices = {
+    '201': 500,
+    '202': 600,
+    '203': 700,
+    '204': 800,
+    '205': 450,
+    '206': 550,
+    '207': 550,
+    '208': 550,
+    '209': 450,
+    '210': 700,
+    '211': 700,
+    '212': 600,
+    '213': 500
+  };
+  return zonePrices[zone] || 500;
 }
 
-// Функция для генерации SQL INSERT запросов
-function generateSeatInsertSQL(seats, zoneId, eventId = '550e8400-e29b-41d4-a716-446655440000') {
-  if (seats.length === 0) {
-    return '';
-  }
-
-  // Отслеживаем уже использованные комбинации row+number для генерации уникальных номеров
-  const usedCombinations = new Set();
-  
-  const values = seats.map(seat => {
-    let uniqueRow = seat.row;
-    let uniqueNumber = seat.number;
-    let combination = `${uniqueRow}-${uniqueNumber}`;
-    
-    // Если комбинация уже используется, генерируем уникальную
-    if (usedCombinations.has(combination)) {
-      let counter = 1;
-      do {
-        // Для дублирующихся мест добавляем суффикс к номеру
-        uniqueNumber = `${seat.number}_${counter}`;
-        combination = `${uniqueRow}-${uniqueNumber}`;
-        counter++;
-      } while (usedCombinations.has(combination));
-    }
-    
-    usedCombinations.add(combination);
-    
-    // Генерируем UUID для каждого места
-    const seatUuid = `uuid_generate_v4()`;
-    return `(${seatUuid}, '${eventId}', '${zoneId}', '${uniqueRow}', '${uniqueNumber}', NULL, FALSE, '${seat.status}', ${seat.x}, ${seat.y})`;
-  }).join(',\n  ');
-
-  return `-- Места для зоны ${zoneId}\nINSERT INTO seats (id, event_id, zone, row, number, price, custom_price, status, x_coordinate, y_coordinate) VALUES\n  ${values};\n\n`;
-}
-
-async function main() {
+// Функция для импорта данных из TypeScript файла
+async function importSeatData(filePath) {
   try {
-    console.log('Начинаю экспорт данных о местах в Supabase...');
+    // Читаем содержимое файла
+    const content = fs.readFileSync(filePath, 'utf8');
     
-    // Читаем все файлы в директории data
-    const files = await fs.readdir(DATA_DIR);
-    const seatFiles = files.filter(file => file.startsWith('zone-') && file.endsWith('-seats.ts'));
-    
-    console.log(`Найдено ${seatFiles.length} файлов с данными о местах:`);
-    seatFiles.forEach(file => console.log(`  - ${file}`));
-    
-    let allSQL = `-- Экспорт всех мест в Supabase\n-- Сгенерировано автоматически скриптом export-seats-to-supabase.mjs\n-- Дата: ${new Date().toISOString()}\n\n`;
-    
-    let totalSeats = 0;
-    
-    for (const file of seatFiles) {
-      // Извлекаем ID зоны из имени файла (например, zone-201-seats.ts -> 201)
-      const zoneIdMatch = file.match(/zone-(\d+)-seats\.ts/);
-      if (!zoneIdMatch) {
-        console.warn(`Пропускаю файл с неправильным форматом имени: ${file}`);
-        continue;
-      }
-      
-      const zoneId = parseInt(zoneIdMatch[1]);
-      const filePath = path.join(DATA_DIR, file);
-      
-      console.log(`Обрабатываю зону ${zoneId}...`);
-      
-      try {
-        const content = await fs.readFile(filePath, 'utf-8');
-        const seats = extractSeatDataFromFile(content);
-        
-        console.log(`  Найдено ${seats.length} мест`);
-        totalSeats += seats.length;
-        
-        const sql = generateSeatInsertSQL(seats, zoneId);
-        allSQL += sql;
-        
-      } catch (error) {
-        console.error(`Ошибка при обработке файла ${file}:`, error.message);
-      }
+    // Извлекаем массив данных с помощью регулярного выражения
+    const arrayMatch = content.match(/export const zone\d+SeatData: SeatData\[\] = (\[[\s\S]*?\]);/);
+    if (!arrayMatch) {
+      console.error(`Не удалось найти массив данных в файле ${filePath}`);
+      return [];
     }
     
-    // Записываем SQL в файл
-    await fs.writeFile(OUTPUT_FILE, allSQL);
+    // Парсим JSON (заменяем одинарные кавычки на двойные)
+    const arrayString = arrayMatch[1]
+      .replace(/'/g, '"')
+      .replace(/([a-zA-Z_][a-zA-Z0-9_]*):(?=\s*[^\s])/g, '"$1":'); // Добавляем кавычки к ключам
     
-    console.log(`\n✅ Экспорт завершен!`);
-    console.log(`📊 Всего обработано мест: ${totalSeats}`);
-    console.log(`📄 SQL файл создан: ${OUTPUT_FILE}`);
-    console.log(`\n🚀 Для импорта в Supabase выполните:`);
-    console.log(`   1. Откройте Supabase SQL Editor`);
-    console.log(`   2. Скопируйте содержимое файла ${path.basename(OUTPUT_FILE)}`);
-    console.log(`   3. Выполните SQL запрос`);
-    
+    const seatData = JSON.parse(arrayString);
+    return seatData;
   } catch (error) {
-    console.error('Ошибка при экспорте:', error);
-    process.exit(1);
+    console.error(`Ошибка при импорте данных из ${filePath}:`, error);
+    return [];
   }
 }
 
-main();
+// Основная функция
+async function exportSeatsToSupabase() {
+  console.log('Начинаем экспорт мест в Supabase...');
+  
+  let allSeats = [];
+  let totalSeats = 0;
+  
+  // Читаем все файлы с данными о зонах
+  const files = fs.readdirSync(dataDir).filter(file => 
+    file.startsWith('zone-') && file.endsWith('-seats.ts')
+  );
+  
+  console.log(`Найдено ${files.length} файлов с данными о зонах`);
+  
+  for (const file of files) {
+    const filePath = path.join(dataDir, file);
+    const zoneMatch = file.match(/zone-(\d+)-seats\.ts/);
+    
+    if (!zoneMatch) {
+      console.warn(`Не удалось извлечь номер зоны из файла ${file}`);
+      continue;
+    }
+    
+    const zone = zoneMatch[1];
+    console.log(`Обрабатываем зону ${zone}...`);
+    
+    const seatData = await importSeatData(filePath);
+    
+    if (seatData.length === 0) {
+      console.warn(`Нет данных для зоны ${zone}`);
+      continue;
+    }
+    
+    // Преобразуем данные для Supabase
+    const supabaseSeats = seatData.map(seat => {
+      const price = getSeatPrice(zone);
+      return {
+        id: seat.id,
+        event_id: EVENT_ID,
+        zone: zone,
+        row: seat.row,
+        number: seat.number,
+        x: seat.x,
+        y: seat.y,
+        status: 'available',
+        price: price,
+        zone_color: seat.fill
+      };
+    });
+    
+    allSeats = allSeats.concat(supabaseSeats);
+    totalSeats += seatData.length;
+    
+    console.log(`Зона ${zone}: ${seatData.length} мест`);
+  }
+  
+  console.log(`\nВсего мест для экспорта: ${totalSeats}`);
+  
+  // Генерируем SQL
+  let sql = `-- Экспорт мест в Supabase\n`;
+  sql += `-- Всего мест: ${totalSeats}\n`;
+  sql += `-- Событие: ${EVENT_ID}\n\n`;
+  
+  sql += `-- Удаляем существующие места для этого события\n`;
+  sql += `DELETE FROM seats WHERE event_id = '${EVENT_ID}';\n\n`;
+  
+  sql += `-- Вставляем новые места\n`;
+  sql += `INSERT INTO seats (event_id, zone, row, number, x_coordinate, y_coordinate, status, price, zone_color) VALUES\n`;
+  
+  const values = allSeats.map(seat => 
+    `('${seat.event_id}', '${seat.zone}', '${seat.row}', '${seat.number}', ${seat.x}, ${seat.y}, '${seat.status}', ${seat.price}, '${seat.zone_color}')`
+  );
+  
+  sql += values.join(',\n');
+  sql += ';\n\n';
+  
+  // Обновляем счетчики в таблице events
+  sql += `-- Обновляем счетчики мест в событии\n`;
+  sql += `UPDATE events SET \n`;
+  sql += `  total_seats = ${totalSeats},\n`;
+  sql += `  available_seats = ${totalSeats}\n`;
+  sql += `WHERE id = '${EVENT_ID}';\n`;
+  
+  // Записываем SQL в файл
+  fs.writeFileSync(outputFile, sql);
+  
+  console.log(`\nSQL файл создан: ${outputFile}`);
+  console.log(`Для импорта выполните этот файл в Supabase SQL Editor`);
+  
+  // Статистика по зонам
+  const zoneStats = {};
+  allSeats.forEach(seat => {
+    if (!zoneStats[seat.zone]) {
+      zoneStats[seat.zone] = 0;
+    }
+    zoneStats[seat.zone]++;
+  });
+  
+  console.log('\nСтатистика по зонам:');
+  Object.keys(zoneStats).sort().forEach(zone => {
+    console.log(`Зона ${zone}: ${zoneStats[zone]} мест`);
+  });
+}
+
+// Запускаем экспорт
+exportSeatsToSupabase().catch(console.error);

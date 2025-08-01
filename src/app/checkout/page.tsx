@@ -5,10 +5,11 @@ import { useRouter, useSearchParams } from 'next/navigation'
 import { motion } from 'framer-motion'
 import { getOrCreateSessionUserId, createTempUserData } from '@/lib/userSession'
 import { SecureSessionManager } from '@/lib/secureSessionManager'
+import { apiClient } from '@/lib/apiClient'
 
 
 interface CheckoutSeat {
-  id: string
+  id: string // Теперь короткий 8-символьный ID
   zone: string
   row: string
   number: string
@@ -16,7 +17,7 @@ interface CheckoutSeat {
 }
 
 interface CheckoutGeneralAccess {
-  id: string
+  id: string // Теперь короткий 8-символьный ID
   name: string
   price: number
   quantity: number
@@ -126,26 +127,21 @@ const CheckoutPageContent: React.FC = () => {
       }
 
       // Создаем заказ через API
-      const orderResponse = await fetch('/api/orders', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'x-session-id': sessionId,
+      const orderResponse = await apiClient.post('/api/orders', {
+        userId: userId,
+        customerInfo: {
+          firstName: customerInfo.firstName,
+          lastName: customerInfo.lastName,
+          email: customerInfo.email,
+          phone: customerInfo.phone
         },
-        body: JSON.stringify({
-          userId: userId,
-          customerInfo: {
-            firstName: customerInfo.firstName,
-            lastName: customerInfo.lastName,
-            email: customerInfo.email,
-            phone: customerInfo.phone
-          },
-          seats: checkoutData.seats,
-          generalAccess: checkoutData.generalAccess,
-          totalPrice: checkoutData.totalPrice,
-          totalTickets: checkoutData.totalTickets,
-          paymentMethod: paymentMethod
-        })
+        seats: checkoutData.seats,
+        generalAccess: checkoutData.generalAccess,
+        totalPrice: checkoutData.totalPrice,
+        totalTickets: checkoutData.totalTickets,
+        paymentMethod: paymentMethod
+      }, {
+        'x-session-id': sessionId,
       })
 
       if (!orderResponse.ok) {
@@ -158,17 +154,12 @@ const CheckoutPageContent: React.FC = () => {
       
       // Если выбран MAIB, инициируем платеж
       if (paymentProvider === 'maib' && paymentMethod === 'card') {
-        const paymentResponse = await fetch(`/api/orders/${orderResult.orderId}/payment`, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'x-session-id': sessionId,
-          },
-          body: JSON.stringify({
-            paymentMethod: paymentMethod,
-            paymentProvider: paymentProvider,
-            language: 'ro'
-          })
+        const paymentResponse = await apiClient.post(`/api/orders/${orderResult.orderId}/payment`, {
+          paymentMethod: paymentMethod,
+          paymentProvider: paymentProvider,
+          language: 'ro'
+        }, {
+          'x-session-id': sessionId,
         })
 
         if (!paymentResponse.ok) {

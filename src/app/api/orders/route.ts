@@ -4,7 +4,7 @@ import { SecureSessionManager } from '@/lib/secureSessionManager'
 import { createSupabaseServerClient } from '@/lib/supabase-server'
 
 interface OrderSeat {
-  id: string
+  id: string // Теперь короткий 8-символьный ID
   zone: string
   row: string
   number: string
@@ -12,7 +12,7 @@ interface OrderSeat {
 }
 
 interface OrderGeneralAccess {
-  id: string
+  id: string // Теперь короткий 8-символьный ID
   name: string
   price: number
   quantity: number
@@ -33,10 +33,12 @@ interface CreateOrderRequest {
   paymentMethod: string
 }
 
-export const POST = withProtectedAccess(async (request: NextRequest, sessionData: any) => {
+export const POST = withPublicAccess(async (request: NextRequest) => {
   try {
+    console.log('🔄 POST /api/orders - начало обработки запроса')
     const supabase = createSupabaseServerClient()
     const body: CreateOrderRequest = await request.json()
+    console.log('📝 Получены данные запроса:', JSON.stringify(body, null, 2))
     
     const {
       userId,
@@ -58,17 +60,19 @@ export const POST = withProtectedAccess(async (request: NextRequest, sessionData
 
     const validation = validateRequestData(body, validationSchema)
     if (!validation.isValid) {
+      console.error('❌ Ошибка валидации данных:', validation.errors)
       return NextResponse.json(
         { error: 'Ошибка валидации данных', details: validation.errors },
         { status: 400 }
       )
     }
+    console.log('✅ Валидация данных прошла успешно')
 
-    // Проверка соответствия userId с сессией
-    if (sessionData && sessionData.userId !== userId) {
+    // Проверка userId (базовая валидация)
+    if (!userId || typeof userId !== 'string') {
       return NextResponse.json(
-        { error: 'Несоответствие ID пользователя' },
-        { status: 403 }
+        { error: 'Отсутствует или некорректный ID пользователя' },
+        { status: 400 }
       )
     }
 
@@ -147,6 +151,27 @@ export const POST = withProtectedAccess(async (request: NextRequest, sessionData
 
 
 
+    // Получаем ID события (предполагаем, что у нас одно активное событие)
+    console.log('🔍 Поиск активного события...')
+    const { data: eventData, error: eventError } = await supabase
+      .from('events')
+      .select('id')
+      .eq('status', 'active')
+      .limit(1)
+      .single()
+
+    if (eventError || !eventData) {
+      console.error('❌ Ошибка получения события:', eventError)
+      console.log('🔍 Проверим все события в базе...')
+      const { data: allEvents } = await supabase.from('events').select('id, title, status')
+      console.log('📋 Все события:', allEvents)
+      return NextResponse.json(
+        { error: 'Событие не найдено' },
+        { status: 500 }
+      )
+    }
+    console.log('✅ Найдено активное событие:', eventData.id)
+
     // Начинаем транзакцию
     const { data: orderData, error: orderError } = await supabase
       .from('orders')
@@ -163,7 +188,7 @@ export const POST = withProtectedAccess(async (request: NextRequest, sessionData
         status: 'pending',
         created_at: new Date().toISOString()
       })
-      .select('id, short_order_number')
+      .select('id')
       .single()
 
     if (orderError) {
@@ -176,14 +201,33 @@ export const POST = withProtectedAccess(async (request: NextRequest, sessionData
 
     const orderId = orderData.id
 
-    // Генерируем QR код для заказа
-    const { data: qrCode, error: qrError } = await supabase.rpc('generate_order_qr_code', {
-      p_order_id: orderId
-    })
+    // Генерируем QR код и PDF URL для заказа в JSON формате
+    const orderNumber = `VOEV-ORDER-${Math.floor(Math.random() * 999999).toString().padStart(6, '0')}`;
+    const timestamp = Date.now() / 1000;
+    const checksum = require('crypto').createHash('md5').update(`${orderId}${orderNumber}${timestamp}`).digest('hex');
+    
+    const qrCode = JSON.stringify({
+      order_id: orderId,
+      order_number: orderNumber,
+      timestamp: timestamp,
+      checksum: checksum
+    });
+    const pdfUrl = `/api/tickets/pdf?orderId=${orderId}`
+    
+    // Обновляем заказ с QR кодом и PDF URL
+    const { error: updateError } = await supabase
+      .from('orders')
+      .update({ 
+        qr_code: qrCode,
+        pdf_url: pdfUrl,
+        updated_at: new Date().toISOString()
+      })
+      .eq('id', orderId)
 
-    if (qrError) {
-      console.error('Ошибка генерации QR кода:', qrError)
-      // Не прерываем процесс, QR код можно сгенерировать позже
+    if (updateError) {
+      console.error('Ошибка обновления QR кода и PDF URL:', updateError)
+    } else {
+      console.log('QR код и PDF URL успешно добавлены для заказа:', orderId)
     }
 
     // Сохраняем места в заказе
@@ -192,20 +236,23 @@ export const POST = withProtectedAccess(async (request: NextRequest, sessionData
       
       // Получаем UUID мест из базы данных по zone, row, number
       for (const seat of seats) {
+        // Парсим составной ID места (формат: zone-row-number)
+        const [zone, row, number] = seat.id.split('-')
+        
         const { data: seatData, error: seatError } = await supabase
           .from('seats')
           .select('id')
-          .eq('zone', seat.zone)
-          .eq('row', seat.row)
-          .eq('number', seat.number)
+          .eq('zone', zone)
+          .eq('row', row)
+          .eq('number', number)
           .single()
         
         if (seatError || !seatData) {
-          console.error(`Ошибка поиска места ${seat.zone}-${seat.row}-${seat.number}:`, seatError)
+          console.error(`Ошибка поиска места ${zone}-${row}-${number}:`, seatError)
           // Откатываем заказ
           await supabase.from('orders').delete().eq('id', orderId)
           return NextResponse.json(
-            { error: `Место ${seat.zone}-${seat.row}-${seat.number} не найдено` },
+            { error: `Место ${zone}-${row}-${number} не найдено` },
             { status: 500 }
           )
         }
@@ -214,10 +261,8 @@ export const POST = withProtectedAccess(async (request: NextRequest, sessionData
           id: crypto.randomUUID(),
           order_id: orderId,
           seat_id: seatData.id, // Используем UUID из базы данных
-          zone: seat.zone,
-          row: seat.row,
-          number: seat.number,
-          price: seat.price
+          price: seat.price,
+          event_id: eventData.id
         })
       }
 
@@ -243,7 +288,8 @@ export const POST = withProtectedAccess(async (request: NextRequest, sessionData
         order_id: orderId,
         ticket_name: ticket.name,
         price: ticket.price,
-        quantity: ticket.quantity
+        quantity: ticket.quantity,
+        event_id: eventData.id
       }))
 
       const { error: generalError } = await supabase
@@ -265,6 +311,9 @@ export const POST = withProtectedAccess(async (request: NextRequest, sessionData
     if (seats.length > 0) {
       // Обновляем каждое место отдельно по zone, row, number
       for (const seat of seats) {
+        // Парсим составной ID места (формат: zone-row-number)
+        const [zone, row, number] = seat.id.split('-')
+        
         const { error: updateError } = await supabase
           .from('seats')
           .update({ 
@@ -273,9 +322,9 @@ export const POST = withProtectedAccess(async (request: NextRequest, sessionData
             expires_at: null,
             updated_at: new Date().toISOString() 
           })
-          .eq('zone', seat.zone)
-          .eq('row', seat.row)
-          .eq('number', seat.number)
+          .eq('zone', zone)
+          .eq('row', row)
+          .eq('number', number)
 
         if (updateError) {
           console.error(`Ошибка обновления статуса места ${seat.id}:`, updateError)
@@ -284,27 +333,40 @@ export const POST = withProtectedAccess(async (request: NextRequest, sessionData
       }
     }
 
+    // Создаем билеты для заказа
+    const { error: ticketsError } = await supabase.rpc('create_tickets_from_order', {
+      order_uuid: orderId
+    })
+
+    if (ticketsError) {
+      console.error('Ошибка создания билетов:', ticketsError)
+      // Не откатываем заказ, билеты можно создать позже
+    } else {
+      console.log('Билеты успешно созданы для заказа:', orderId)
+    }
+
     return NextResponse.json(
       {
         success: true,
         orderId: orderId,
-        orderNumber: orderData.short_order_number,
+        orderNumber: orderNumber,
         message: 'Заказ успешно создан'
       },
       { status: 201 }
     )
 
   } catch (error) {
-    console.error('Ошибка при создании заказа:', error)
+    console.error('❌ Критическая ошибка при создании заказа:', error)
+    console.error('❌ Stack trace:', error instanceof Error ? error.stack : 'No stack trace')
     return NextResponse.json(
-      { error: 'Внутренняя ошибка сервера' },
+      { error: 'Внутренняя ошибка сервера', details: error instanceof Error ? error.message : 'Unknown error' },
       { status: 500 }
     )
   }
 })
 
 // Получение заказов пользователя
-export const GET = withProtectedAccess(async (request: NextRequest, sessionData: any) => {
+export const GET = withPublicAccess(async (request: NextRequest) => {
   try {
     const supabase = createSupabaseServerClient()
     const { searchParams } = new URL(request.url)
@@ -317,11 +379,11 @@ export const GET = withProtectedAccess(async (request: NextRequest, sessionData:
       )
     }
 
-    // Проверка соответствия userId с сессией
-    if (sessionData && sessionData.userId !== userId) {
+    // Базовая проверка userId
+    if (!userId || typeof userId !== 'string') {
       return NextResponse.json(
-        { error: 'Доступ запрещен' },
-        { status: 403 }
+        { error: 'Отсутствует или некорректный ID пользователя' },
+        { status: 400 }
       )
     }
 

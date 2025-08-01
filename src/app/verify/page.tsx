@@ -4,7 +4,7 @@ import React, { useState } from 'react'
 import { motion } from 'framer-motion'
 
 interface TicketInfo {
-  orderId: string
+  orderId: string // Теперь короткий 8-символьный ID
   orderNumber?: string
   customerName: string
   eventTitle: string

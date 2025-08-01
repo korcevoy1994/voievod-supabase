@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react'
 
 interface SeatData {
-  id: string
+  id: string // Теперь короткий 8-символьный ID
   row: string
   number: string
   x: number

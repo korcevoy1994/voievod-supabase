@@ -3,7 +3,7 @@ import { createSupabaseServerClient } from '@/lib/supabase-server'
 
 interface ZonePricing {
   zone: string
-  base_price: number
+  price: number
   row_multipliers?: Record<string, number>
 }
 
@@ -20,8 +20,7 @@ export async function GET(
       .from('zone_pricing')
       .select(`
         zone,
-        base_price,
-        row_multipliers
+        price
       `)
       .eq('event_id', eventId)
       .order('zone')
@@ -34,7 +33,7 @@ export async function GET(
     // Преобразуем в формат объекта для совместимости с текущим кодом
     const zonePrices: Record<string, number> = {}
     pricing?.forEach((item: any) => {
-      zonePrices[item.zone] = item.base_price
+      zonePrices[item.zone] = item.price
     })
 
     return NextResponse.json({ 
@@ -54,10 +53,10 @@ export async function PUT(
   try {
     const supabase = createSupabaseServerClient()
     const { eventId } = await params
-    const { zone, basePrice, rowMultipliers } = await request.json()
+    const { zone, price } = await request.json()
 
-    if (!zone || basePrice === undefined) {
-      return NextResponse.json({ error: 'Zone and base price are required' }, { status: 400 })
+    if (!zone || price === undefined) {
+      return NextResponse.json({ error: 'Zone and price are required' }, { status: 400 })
     }
 
     // Обновляем или создаем ценообразование для зоны
@@ -66,8 +65,7 @@ export async function PUT(
       .upsert({
         event_id: eventId,
         zone,
-        base_price: basePrice,
-        row_multipliers: rowMultipliers || {}
+        price: price
       })
       .select()
 

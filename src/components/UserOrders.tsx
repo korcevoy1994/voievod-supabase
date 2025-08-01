@@ -6,7 +6,7 @@ import { getCurrentSessionUserId } from '@/lib/userSession'
 import { SecureSessionManager } from '@/lib/secureSessionManager'
 
 interface OrderSeat {
-  id: string
+  id: string // Теперь короткий 8-символьный ID
   seat_id: string
   zone: string
   row: string
@@ -15,14 +15,14 @@ interface OrderSeat {
 }
 
 interface OrderGeneralAccess {
-  id: string
+  id: string // Теперь короткий 8-символьный ID
   ticket_name: string
   price: number
   quantity: number
 }
 
 interface Order {
-  id: string
+  id: string // Теперь короткий 8-символьный ID
   short_order_number?: string
   customer_email: string
   customer_first_name: string

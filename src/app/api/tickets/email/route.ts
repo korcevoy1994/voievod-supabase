@@ -6,7 +6,7 @@ import path from 'path'
 import { createSupabaseServerClient } from '@/lib/supabase-server'
 
 interface Order {
-  id: string;
+  id: string; // Теперь короткий 8-символьный ID
   customer_first_name: string;
   customer_last_name: string;
   customer_email: string;
@@ -18,14 +18,16 @@ interface Order {
   created_at: string;
   order_seats: Array<{
     seat_id: string;
-    zone: string;
-    row: string;
-    number: string;
     price: number;
+    seats: {
+      zone: string;
+      row: string;
+      number: string;
+    };
   }>;
   order_general_access: Array<{
-    id: string;
-    name: string;
+    id: string; // Теперь короткий 8-символьный ID
+    ticket_name: string;
     price: number;
     quantity: number;
   }>;
@@ -70,8 +72,17 @@ const generateSingleTicketPDF = async (order: Order, ticketInfo: any, ticketInde
        doc.rect(0, 0, widthPt, heightPt, 'F');
      }
     
-    // Генерируем уникальный QR код для каждого билета
-     const qrData = `ORDER:${order.id}:TICKET:${ticketIndex}:${Date.now()}`;
+    // Генерируем уникальный QR код для каждого билета в JSON формате
+     const ticketNumber = `VOEV-2025-${Math.floor(Math.random() * 999999).toString().padStart(6, '0')}`;
+     const timestamp = Date.now() / 1000;
+     const checksum = require('crypto').createHash('md5').update(`${order.id}${ticketNumber}${timestamp}`).digest('hex');
+     
+     const qrData = JSON.stringify({
+       ticket_id: order.id,
+       ticket_number: ticketNumber,
+       timestamp: timestamp,
+       checksum: checksum
+     });
      const qrCodeDataURL = await QRCode.toDataURL(qrData, {
        width: 300,
        margin: 1,
@@ -121,18 +132,26 @@ const generateSingleTicketPDF = async (order: Order, ticketInfo: any, ticketInde
 
 // Функция генерации всех PDF билетов для заказа
 const generateAllTicketPDFs = async (order: Order): Promise<Array<{buffer: Buffer, filename: string}>> => {
+  console.log('🎫 Начинаем генерацию PDF билетов для заказа:', order.id)
+  console.log('📊 Данные заказа:', {
+    seats: order.order_seats?.length || 0,
+    generalAccess: order.order_general_access?.length || 0,
+    totalTickets: order.total_tickets
+  })
+  
   const tickets = [];
   let ticketIndex = 1;
   const baseTimestamp = Date.now();
   
   // Генерируем PDF для каждого места
   if (order.order_seats && order.order_seats.length > 0) {
+    console.log('🪑 Генерируем PDF для мест:', order.order_seats.length)
     for (const seat of order.order_seats) {
       const ticketInfo = {
         type: 'seat',
-        zone: seat.zone,
-        row: seat.row,
-        number: seat.number,
+        zone: seat.seats.zone,
+        row: seat.seats.row,
+        number: seat.seats.number,
         price: seat.price
       };
       
@@ -141,7 +160,7 @@ const generateAllTicketPDFs = async (order: Order): Promise<Array<{buffer: Buffe
       const uniqueTimestamp = baseTimestamp + ticketIndex;
       tickets.push({
         buffer: pdfBuffer,
-        filename: `bilet-${ticketIndex}-zona-${seat.zone}-rand-${seat.row}-loc-${seat.number}-${uniqueTimestamp}.pdf`
+        filename: `bilet-${ticketIndex}-zona-${seat.seats.zone}-rand-${seat.seats.row}-loc-${seat.seats.number}-${uniqueTimestamp}.pdf`
       });
       ticketIndex++;
     }
@@ -149,12 +168,13 @@ const generateAllTicketPDFs = async (order: Order): Promise<Array<{buffer: Buffe
   
   // Генерируем PDF для каждого билета общего доступа
   if (order.order_general_access && order.order_general_access.length > 0) {
+    console.log('🎟️ Генерируем PDF для general access билетов:', order.order_general_access.length)
     for (const ga of order.order_general_access) {
       // Генерируем отдельный PDF для каждого билета в количестве
       for (let i = 0; i < ga.quantity; i++) {
         const ticketInfo = {
           type: 'general',
-          name: ga.name,
+          name: ga.ticket_name,
           price: ga.price
         };
         
@@ -163,12 +183,15 @@ const generateAllTicketPDFs = async (order: Order): Promise<Array<{buffer: Buffe
         const uniqueTimestamp = baseTimestamp + ticketIndex;
         tickets.push({
           buffer: pdfBuffer,
-          filename: `bilet-${ticketIndex}-${ga.name.replace(/\s+/g, '-').toLowerCase()}-${uniqueTimestamp}.pdf`
+          filename: `bilet-${ticketIndex}-${ga.ticket_name.replace(/\s+/g, '-').toLowerCase()}-${uniqueTimestamp}.pdf`
         });
         ticketIndex++;
       }
     }
   }
+  
+  console.log('✅ Генерация PDF завершена. Всего билетов:', tickets.length)
+  console.log('📄 Размеры файлов:', tickets.map(t => `${t.filename}: ${t.buffer.length} bytes`))
   
   return tickets;
 }
@@ -190,14 +213,10 @@ export async function POST(request: NextRequest) {
     // Получаем данные заказа
     const { data: order, error: orderError } = await supabase
       .from('orders')
-      .select(`
-        *,
-        order_seats(*),
-        order_general_access(*)
-      `)
+      .select('*')
       .eq('id', orderId)
       .single()
-    
+
     if (orderError || !order) {
       console.error('❌ Ошибка получения заказа:', orderError)
       return NextResponse.json(
@@ -205,9 +224,68 @@ export async function POST(request: NextRequest) {
         { status: 404 }
       )
     }
+
+    // Получаем места заказа отдельно
+    console.log('🔍 Запрашиваем места для заказа:', orderId)
+    const { data: orderSeats, error: seatsError } = await supabase
+      .from('order_seats')
+      .select('*')
+      .eq('order_id', orderId)
+    
+    console.log('🪑 Результат запроса мест:', { data: orderSeats, error: seatsError })
+    
+    // Если есть места, получаем информацию о местах отдельно
+    if (orderSeats && orderSeats.length > 0) {
+      for (const orderSeat of orderSeats) {
+        console.log('🔍 Ищем информацию о месте:', orderSeat.seat_id)
+        const { data: seatInfo, error: seatError } = await supabase
+          .from('seats')
+          .select('zone, row, number')
+          .eq('id', orderSeat.seat_id)
+          .single()
+        
+        console.log('🪑 Информация о месте:', { data: seatInfo, error: seatError })
+        
+        if (seatInfo) {
+          orderSeat.seats = seatInfo
+        } else {
+          // Если не найдено по ID, попробуем парсить из seat_id
+          const seatParts = orderSeat.seat_id.split('-')
+          if (seatParts.length === 3) {
+            orderSeat.seats = {
+              zone: seatParts[0],
+              row: seatParts[1],
+              number: seatParts[2]
+            }
+            console.log('🔧 Парсим seat_id:', orderSeat.seats)
+          }
+        }
+      }
+    }
+
+    // Получаем general access билеты отдельно
+    console.log('🔍 Запрашиваем general access для заказа:', orderId)
+    const { data: orderGeneralAccess, error: gaError } = await supabase
+      .from('order_general_access')
+      .select('*')
+      .eq('order_id', orderId)
+    
+    console.log('🎟️ Результат запроса general access:', { data: orderGeneralAccess, error: gaError })
+
+    // Добавляем данные к объекту заказа
+    order.order_seats = orderSeats || []
+    order.order_general_access = orderGeneralAccess || []
+    
+    console.log('🔍 Данные заказа перед генерацией PDF:')
+    console.log('📋 Order ID:', order.id)
+    console.log('🪑 Order seats:', order.order_seats)
+    console.log('🎟️ Order general access:', order.order_general_access)
+    console.log('📊 Total tickets:', order.total_tickets)
     
     // Генерируем все PDF билеты
+    console.log('🚀 Вызываем generateAllTicketPDFs...')
     const ticketPDFs = await generateAllTicketPDFs(order)
+    console.log('✅ generateAllTicketPDFs завершена, результат:', ticketPDFs.length, 'билетов')
     
     // Настройка транспорта для отправки email
     const transporter = nodemailer.createTransport({
@@ -217,8 +295,23 @@ export async function POST(request: NextRequest) {
       auth: {
         user: process.env.SMTP_USER,
         pass: process.env.SMTP_PASS
-      }
+      },
+      // Дополнительные настройки для улучшения доставляемости
+      tls: {
+        rejectUnauthorized: false
+      },
+      debug: true, // Включаем отладку
+      logger: true // Включаем логирование
     })
+    
+    // Проверяем соединение с SMTP сервером
+    try {
+      await transporter.verify()
+      console.log('✅ SMTP соединение установлено успешно')
+    } catch (verifyError) {
+      console.error('❌ Ошибка SMTP соединения:', verifyError)
+      throw new Error('SMTP server connection failed')
+    }
     
     // Создаем вложения для каждого билета
     const attachments = ticketPDFs.map(ticket => ({
@@ -270,10 +363,25 @@ export async function POST(request: NextRequest) {
       attachments: attachments
     }
     
+    console.log('📧 Отправка email на адрес:', order.customer_email)
+    console.log('📎 Количество вложений:', attachments.length)
+    console.log('📄 Размеры PDF файлов:', attachments.map(a => `${a.filename}: ${a.content.length} bytes`))
+    
     const info = await transporter.sendMail(mailOptions)
     
-    console.log('✅ Email отправлен успешно:', info.messageId)
+    console.log('✅ Email отправлен успешно!')
+    console.log('📧 Message ID:', info.messageId)
+    console.log('📧 Response:', info.response)
+    console.log('📧 Envelope:', info.envelope)
     console.log('📧 Preview URL:', nodemailer.getTestMessageUrl(info))
+    
+    // Дополнительная информация для отладки
+    if (info.accepted && info.accepted.length > 0) {
+      console.log('✅ Email принят сервером для:', info.accepted)
+    }
+    if (info.rejected && info.rejected.length > 0) {
+      console.log('❌ Email отклонен для:', info.rejected)
+    }
     
     return NextResponse.json({
       success: true,
