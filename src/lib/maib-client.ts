@@ -105,8 +105,7 @@ class MaibClient {
     if (paymentData.failUrl) requestBody.failUrl = paymentData.failUrl;
     if (paymentData.callbackUrl) requestBody.callbackUrl = paymentData.callbackUrl;
 
-    console.log('Final request body for MAIB API:', JSON.stringify(requestBody, null, 2));
-    console.log('Making request to:', `${this.baseUrl}/pay`);
+    // Debug logs removed for production
 
     const response = await fetch(`${this.baseUrl}/pay`, {
       method: 'POST',
@@ -197,15 +196,15 @@ class MaibClient {
   /**
    * Возврат платежа
    */
-  async refundPayment(transactionId: string, amount?: number): Promise<boolean> {
+  async refundPayment(payId: string, refundAmount?: number): Promise<boolean> {
     const token = await this.generateToken();
 
     const requestBody: any = {
-      transactionId,
+      payId,
     };
 
-    if (amount) {
-      requestBody.amount = amount;
+    if (refundAmount) {
+      requestBody.refundAmount = refundAmount;
     }
 
     const response = await fetch(`${this.baseUrl}/refund`, {
@@ -218,11 +217,44 @@ class MaibClient {
     });
 
     if (!response.ok) {
-      throw new Error(`Refund failed: ${response.statusText}`);
+      let errorMessage = response.statusText;
+      try {
+        const responseText = await response.text();
+        if (responseText) {
+          try {
+            const errorData = JSON.parse(responseText);
+            if (errorData.errors && Array.isArray(errorData.errors)) {
+              errorMessage = errorData.errors.map((err: any) => 
+                `${err.errorCode}: ${err.errorMessage}`
+              ).join(', ');
+            } else {
+              errorMessage = errorData.message || responseText;
+            }
+          } catch {
+            errorMessage = responseText;
+          }
+        }
+      } catch {
+        // Используем statusText если не можем прочитать ответ
+      }
+      throw new Error(`Refund failed: ${response.status} ${errorMessage}`);
     }
 
     const result = await response.json();
-    return result.success;
+    
+    // Проверяем успешность ответа согласно документации MAIB
+    if (!result.ok) {
+      let errorMessage = 'Unknown error';
+      if (result.errors && Array.isArray(result.errors)) {
+        errorMessage = result.errors.map((err: any) => 
+          `${err.errorCode}: ${err.errorMessage}`
+        ).join(', ');
+      }
+      throw new Error(`Refund failed: ${errorMessage}`);
+    }
+
+    // Проверяем статус возврата
+    return result.result?.status === 'OK';
   }
 
   /**
@@ -253,12 +285,7 @@ class MaibClient {
         .update(signString)
         .digest('base64');
 
-      console.log('Callback verification:', {
-        receivedSignature: signature,
-        expectedSignature,
-        signString: signString.substring(0, 100) + '...', // Логируем только начало для безопасности
-        sortedKeys
-      });
+      // Debug log removed for production
 
       return signature === expectedSignature;
     } catch (error) {

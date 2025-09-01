@@ -1,8 +1,48 @@
 'use client'
 
-import React, { forwardRef, useEffect, useRef, useState } from 'react'
+import React, { forwardRef, useEffect, useRef, useState, useCallback, useMemo } from 'react'
 import { TransformWrapper, TransformComponent, ReactZoomPanPinchRef } from 'react-zoom-pan-pinch'
 import { useZoneSeats } from '@/lib/hooks/useSupabaseData'
+import { useOptimizedZoneSeats } from '@/lib/hooks/useOptimizedData'
+import { logger } from '@/lib/logger'
+
+// Типы данных
+interface SeatData {
+  id: string
+  row: string
+  number: string
+  x: number
+  y: number
+  status: 'available' | 'unavailable' | 'selected' | 'reserved' | 'sold' | 'blocked'
+  price: number
+  fill: string
+}
+
+// Глобальный кэш для SVG файлов
+const svgCache = new Map<string, string>()
+
+// Батчинг DOM операций
+class DOMBatcher {
+  private operations: (() => void)[] = []
+  private rafId: number | null = null
+
+  add(operation: () => void) {
+    this.operations.push(operation)
+    if (!this.rafId) {
+      this.rafId = requestAnimationFrame(() => {
+        this.flush()
+      })
+    }
+  }
+
+  flush() {
+    const ops = this.operations.splice(0)
+    ops.forEach(op => op())
+    this.rafId = null
+  }
+}
+
+const domBatcher = new DOMBatcher()
 
 interface SeatMapSupabaseProps {
   zoneId: string
@@ -14,181 +54,222 @@ interface SeatMapSupabaseProps {
 
 const SeatMapSupabase = forwardRef<ReactZoomPanPinchRef, SeatMapSupabaseProps>(
   ({ zoneId, selectedSeats, onSeatClick, eventId = 'voevoda', price }, ref) => {
-    const { seats, loading, error } = useZoneSeats(zoneId)
+    const { data: seats, loading, error } = useOptimizedZoneSeats(zoneId, eventId)
     const containerRef = useRef<HTMLDivElement>(null)
     const [tooltip, setTooltip] = useState<{ x: number; y: number; content: string } | null>(null)
+    const eventListenersRef = useRef<Map<string, { element: SVGElement; listeners: (() => void)[] }>>(new Map())
+
+    // Мемоизированная функция для загрузки SVG
+    const loadSVG = useCallback(async (zoneId: string): Promise<string> => {
+      if (svgCache.has(zoneId)) {
+        return svgCache.get(zoneId)!
+      }
+
+      const response = await fetch(`/${zoneId}.svg`)
+      if (!response.ok) {
+        throw new Error(`Failed to load SVG for zone ${zoneId}`)
+      }
+      
+      const svgContent = await response.text()
+      svgCache.set(zoneId, svgContent)
+      return svgContent
+    }, [])
+
+    // Мемоизированная карта мест для быстрого поиска
+    const seatsMap = useMemo(() => {
+      const map = new Map<string, SeatData>()
+      const seatsArray = seats?.seats || seats
+      console.log('🔍 SeatMapSupabase - зона:', zoneId, 'eventId:', eventId)
+      console.log('🔍 SeatMapSupabase - полученные места:', seatsArray?.slice(0, 3))
+      if (Array.isArray(seatsArray)) {
+        seatsArray.forEach((seat: SeatData) => {
+          // Используем row и number напрямую из данных API
+          const svgSeatId = `${seat.row} - ${seat.number.padStart(2, '0')}`
+          map.set(svgSeatId, seat)
+          if (seat.row === 'A' && ['01', '02', '03'].includes(seat.number)) {
+            console.log(`🎨 Место ${svgSeatId}: fill=${seat.fill}, status=${seat.status}`)
+          }
+        })
+      }
+      return map
+    }, [seats, zoneId, eventId])
+
+    // Очистка event listeners
+    const cleanupEventListeners = useCallback(() => {
+      eventListenersRef.current.forEach(({ element, listeners }) => {
+        listeners.forEach(cleanup => cleanup())
+      })
+      eventListenersRef.current.clear()
+    }, [])
 
     useEffect(() => {
-      if (!containerRef.current || loading || error || seats.length === 0) return
+      const seatsArray = seats?.seats || seats
+      if (!containerRef.current || loading || error || !Array.isArray(seatsArray) || seatsArray.length === 0) return
 
       const container = containerRef.current
       
-      // Load correct SVG file based on zone ID
-      const svgFile = `/${zoneId}.svg`
+      // Очищаем предыдущие listeners
+      cleanupEventListeners()
       
-      fetch(svgFile)
-        .then(response => response.text())
+      loadSVG(zoneId)
         .then(svgContent => {
           container.innerHTML = svgContent
           const svg = container.querySelector('svg')
           if (!svg) return
 
-          // Make SVG responsive
-          svg.setAttribute('width', '100%')
-          svg.setAttribute('height', '100%')
-          svg.style.width = '100%'
-          svg.style.height = '100%'
-          svg.setAttribute('class', 'w-full h-full')
-          svg.style.display = 'block'
-          svg.style.objectFit = 'contain'
-          svg.style.margin = '0'
-          svg.style.padding = '0'
-        
-          // Add interactivity to seats using Supabase data
-          seats.forEach(seat => {
-            // Convert seat ID format: "202-K-01" -> "K - 01"
-            const [, row, number] = seat.id.split('-')
-            const svgSeatId = `${row} - ${number.padStart(2, '0')}`
+          // Настройка SVG
+          domBatcher.add(() => {
+            svg.setAttribute('width', '100%')
+            svg.setAttribute('height', '100%')
+            svg.style.cssText = 'width: 100%; height: 100%; display: block; object-fit: contain; margin: 0; padding: 0;'
+            svg.setAttribute('class', 'w-full h-full')
+          })
+          
+          // Батчинг обработки мест
+          const seatUpdates: Array<() => void> = []
+          
+          seatsMap.forEach((seat, svgSeatId) => {
             const seatElement = svg.querySelector(`[id='${svgSeatId}']`) as SVGElement
             
             if (!seatElement) {
-              console.warn(`Seat element not found for ID: ${svgSeatId}`)
+              logger.warn(`Seat element not found for ID: ${svgSeatId}`)
               return
             }
 
-            // Set initial state
             const isSelected = selectedSeats.includes(seat.id)
-            // Место кликабельно если оно доступно или уже выбрано (для отмены)
             const isClickable = seat.status === 'available' || seat.status === 'selected' || isSelected
             
-            // Apply styles based on seat status
-            switch (seat.status) {
-              case 'unavailable':
-                seatElement.setAttribute('fill', '#9CA3AF') // gray-400
-                seatElement.style.cursor = 'not-allowed'
-                break
-              case 'reserved':
-                if (isSelected) {
-                  // Если место зарезервировано, но выбрано нами - показываем как выбранное и разрешаем кликать
-                  seatElement.setAttribute('fill', '#fff')
-                  seatElement.setAttribute('stroke', '#d1d5db') // gray-300
-                  seatElement.setAttribute('stroke-width', '3')
-                  seatElement.style.filter = 'drop-shadow(0 0 8px #fff)'
-                  seatElement.style.cursor = 'pointer'
-                } else {
-                  // Зарезервировано другим пользователем
-                  seatElement.setAttribute('fill', '#FBBF24') // yellow-400
+            // Создаем функцию обновления стилей
+            const updateStyles = () => {
+              switch (seat.status) {
+                case 'unavailable':
+                  seatElement.setAttribute('fill', '#9CA3AF')
                   seatElement.style.cursor = 'not-allowed'
-                }
-                break
-              case 'sold':
-                seatElement.setAttribute('fill', '#9CA3AF') // gray-400 (как blocked)
-                seatElement.style.cursor = 'not-allowed'
-                break
-              case 'blocked':
-                seatElement.setAttribute('fill', '#374151') // gray-700
-                seatElement.style.cursor = 'not-allowed'
-                break
-              case 'available':
-              default:
-                if (isSelected) {
-                  // Selected seat - белый с серой рамкой и glow
+                  break
+                case 'reserved':
+                  if (isSelected) {
+                    seatElement.setAttribute('fill', '#fff')
+                    seatElement.setAttribute('stroke', '#d1d5db')
+                    seatElement.setAttribute('stroke-width', '3')
+                    seatElement.style.filter = 'drop-shadow(0 0 8px #fff)'
+                    seatElement.style.cursor = 'pointer'
+                  } else {
+                    seatElement.setAttribute('fill', '#FBBF24')
+                    seatElement.style.cursor = 'not-allowed'
+                  }
+                  break
+                case 'sold':
+                  seatElement.setAttribute('fill', '#9CA3AF')
+                  seatElement.style.cursor = 'not-allowed'
+                  break
+                case 'blocked':
+                  seatElement.setAttribute('fill', '#374151')
+                  seatElement.style.cursor = 'not-allowed'
+                  break
+                case 'available':
+                default:
+                  if (isSelected) {
+                    seatElement.setAttribute('fill', '#fff')
+                    seatElement.setAttribute('stroke', '#d1d5db')
+                    seatElement.setAttribute('stroke-width', '3')
+                    seatElement.style.filter = 'drop-shadow(0 0 8px #fff)'
+                    seatElement.style.cursor = 'pointer'
+                  } else {
+                    const finalFill = seat.fill || '#8525D9'
+                    seatElement.setAttribute('fill', finalFill)
+                    seatElement.setAttribute('stroke', 'none')
+                    seatElement.style.filter = 'none'
+                    seatElement.style.cursor = 'pointer'
+                    console.log(`🎨 Применяю цвет для ${svgSeatId}: API=${seat.fill} -> итог=${finalFill}`)
+                  }
+                  break
+              }
+            }
+
+            seatUpdates.push(updateStyles)
+
+            // Оптимизированные event handlers
+            if (isClickable) {
+              const handleClick = () => onSeatClick(seat.id)
+              
+              const handleMouseEnter = (e: MouseEvent) => {
+                if (!selectedSeats.includes(seat.id)) {
                   seatElement.setAttribute('fill', '#fff')
-                  seatElement.setAttribute('stroke', '#d1d5db') // gray-300
-                  seatElement.setAttribute('stroke-width', '3')
-                  seatElement.style.filter = 'drop-shadow(0 0 8px #fff)'
-                  seatElement.style.cursor = 'pointer'
+                  seatElement.style.opacity = '0.8'
                 } else {
-                  // Available seat - цвет зоны из Supabase
-                  seatElement.setAttribute('fill', seat.fill || '#8525D9')
-                  seatElement.setAttribute('stroke', 'none')
-                  seatElement.style.filter = 'none'
-                  seatElement.style.cursor = 'pointer'
+                  seatElement.style.opacity = '0.8'
                 }
-                break
-            }
-
-            // Add event handlers
-            const handleClick = () => {
-              if (isClickable) {
-                onSeatClick(seat.id)
-              }
-            }
-
-            const handleMouseEnter = (e: MouseEvent) => {
-              if (!isClickable) return
-              if (!selectedSeats.includes(seat.id)) {
-                seatElement.setAttribute('fill', '#fff')
-                seatElement.style.opacity = '0.8'
-              } else {
-                // Для выбранных мест показываем эффект при наведении
-                seatElement.style.opacity = '0.8'
-              }
-              // Tooltip
-              const rect = svg.getBoundingClientRect()
-              let x = e.clientX - rect.left
-              let y = e.clientY - rect.top - 24
-              // учёт границ
-              const tooltipWidth = 110
-              const tooltipHeight = 32
-              if (x + tooltipWidth > rect.width) x = rect.width - tooltipWidth - 8
-              if (y < 0) y = 8
-              
-              // Show status in tooltip
-              const statusText = {
-                available: 'Disponibil',
-                selected: 'Selectat',
-                unavailable: 'Indisponibil',
-                reserved: 'Rezervat',
-                sold: 'Vândut',
-                blocked: 'Blocat'
-              }[seat.status] || 'Necunoscut'
-              
-              setTooltip({
-                x,
-                y,
-                content: `Rând: ${seat.row}, Loc: ${parseInt(seat.number, 10)}`
-              })
-            }
-
-            const handleMouseLeave = () => {
-              if (!isClickable) return
-              if (!selectedSeats.includes(seat.id)) {
-                // Reset to original color
-                seatElement.setAttribute('fill', seat.fill || '#8525D9')
-                seatElement.style.opacity = '1'
-              } else {
-                // Для выбранных мест возвращаем нормальную прозрачность
-                seatElement.style.opacity = '1'
-              }
-              setTooltip(null)
-            }
-
-            seatElement.addEventListener('click', handleClick)
-            seatElement.addEventListener('mouseenter', handleMouseEnter)
-            seatElement.addEventListener('mouseleave', handleMouseLeave)
-            seatElement.addEventListener('mousemove', (e: MouseEvent) => {
-              if (tooltip) {
+                
                 const rect = svg.getBoundingClientRect()
                 let x = e.clientX - rect.left
                 let y = e.clientY - rect.top - 24
                 const tooltipWidth = 110
-                const tooltipHeight = 32
                 if (x + tooltipWidth > rect.width) x = rect.width - tooltipWidth - 8
                 if (y < 0) y = 8
+                
                 setTooltip({
                   x,
                   y,
                   content: `Rând: ${seat.row}, Loc: ${parseInt(seat.number, 10)}`
                 })
               }
-            })
+
+              const handleMouseLeave = () => {
+                if (!selectedSeats.includes(seat.id)) {
+                  seatElement.setAttribute('fill', seat.fill || '#8525D9')
+                  seatElement.style.opacity = '1'
+                } else {
+                  seatElement.style.opacity = '1'
+                }
+                setTooltip(null)
+              }
+
+              const handleMouseMove = (e: MouseEvent) => {
+                if (tooltip) {
+                  const rect = svg.getBoundingClientRect()
+                  let x = e.clientX - rect.left
+                  let y = e.clientY - rect.top - 24
+                  const tooltipWidth = 110
+                  if (x + tooltipWidth > rect.width) x = rect.width - tooltipWidth - 8
+                  if (y < 0) y = 8
+                  setTooltip({
+                    x,
+                    y,
+                    content: `Rând: ${seat.row}, Loc: ${parseInt(seat.number, 10)}`
+                  })
+                }
+              }
+
+              seatElement.addEventListener('click', handleClick)
+              seatElement.addEventListener('mouseenter', handleMouseEnter)
+              seatElement.addEventListener('mouseleave', handleMouseLeave)
+              seatElement.addEventListener('mousemove', handleMouseMove)
+
+              // Сохраняем cleanup функции
+              const listeners = [
+                () => seatElement.removeEventListener('click', handleClick),
+                () => seatElement.removeEventListener('mouseenter', handleMouseEnter),
+                () => seatElement.removeEventListener('mouseleave', handleMouseLeave),
+                () => seatElement.removeEventListener('mousemove', handleMouseMove)
+              ]
+              
+              eventListenersRef.current.set(seat.id, { element: seatElement, listeners })
+            }
+          })
+
+          // Выполняем все обновления стилей батчем
+          domBatcher.add(() => {
+            seatUpdates.forEach(update => update())
           })
         })
         .catch(error => {
-          console.error('Error loading SVG:', error)
+          logger.error('Error loading SVG', error)
         })
-    }, [seats, selectedSeats, onSeatClick, zoneId, loading, error])
+
+      return () => {
+        cleanupEventListeners()
+      }
+    }, [seats, selectedSeats, onSeatClick, zoneId, loading, error, seatsMap, loadSVG, cleanupEventListeners])
 
     if (loading) {
       return (
@@ -206,7 +287,8 @@ const SeatMapSupabase = forwardRef<ReactZoomPanPinchRef, SeatMapSupabaseProps>(
       )
     }
 
-    if (seats.length === 0) {
+    const seatsArray = seats?.seats || seats
+    if (!Array.isArray(seatsArray) || seatsArray.length === 0) {
       return (
         <div className="flex items-center justify-center h-full">
           <div className="text-gray-400 text-lg">Места не найдены для зоны {zoneId}</div>

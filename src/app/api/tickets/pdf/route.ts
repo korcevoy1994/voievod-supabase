@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { jsPDF } from 'jspdf';
-import QRCode from 'qrcode';
-import path from 'path';
+import * as QRCode from 'qrcode';
+import * as path from 'path';
 import { createSupabaseServerClient } from '@/lib/supabase-server';
 
 async function generateSingleTicketPDF(
@@ -46,26 +46,42 @@ async function generateSingleTicketPDF(
       doc.rect(0, 0, widthPt, heightPt, 'F');
     }
     
-    // Генерируем QR код для конкретного билета
-     const ticketId = `VOEV-2025-${Math.floor(Math.random() * 999999).toString().padStart(6, '0')}`;
-     const timestamp = Date.now() / 1000;
-     const checksum = require('crypto').createHash('md5').update(`${order.id}${ticketId}${timestamp}`).digest('hex');
-     
-     const qrData = JSON.stringify({
-       ticket_id: order.id,
-       ticket_number: ticketId,
-       timestamp: timestamp,
-       checksum: checksum
-     });
-     
-     const qrCodeDataURL = await QRCode.toDataURL(qrData, {
-       width: 300,
-       margin: 1,
-       color: {
-         dark: '#000000',
-         light: '#FFFFFF'
+    // Используем QR код из переданных данных билета
+     let qrCodeDataURL = '';
+     if (ticketInfo.qr_code) {
+       try {
+         // ticketInfo.qr_code уже содержит JSON объект с данными
+         qrCodeDataURL = await QRCode.toDataURL(JSON.stringify(ticketInfo.qr_code), {
+           width: 300,
+           margin: 1,
+           color: {
+             dark: '#000000',
+             light: '#FFFFFF'
+           }
+         });
+       } catch (error) {
+         console.error('Error generating QR code from ticket data:', error);
+         // Fallback - генерируем простой QR код с номером билета
+         qrCodeDataURL = await QRCode.toDataURL(ticketInfo.ticket_number || `ticket-${ticketNumber}`, {
+           width: 300,
+           margin: 1,
+           color: {
+             dark: '#000000',
+             light: '#FFFFFF'
+           }
+         });
        }
-     });
+     } else {
+       // Fallback если QR код отсутствует
+       qrCodeDataURL = await QRCode.toDataURL(ticketInfo.ticket_number || `ticket-${ticketNumber}`, {
+         width: 300,
+         margin: 1,
+         color: {
+           dark: '#000000',
+           light: '#FFFFFF'
+         }
+       });
+     }
     
     // Координаты QR кода: центрирован по x, y 635.5, размер 230x230px
     const qrSize = (230 * 72) / 96;
@@ -160,76 +176,87 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    // Получаем места заказа
-    const { data: orderSeats } = await supabase
-      .from('order_seats')
-      .select('*')
-      .eq('order_id', orderId);
+    // Получаем билеты из таблицы tickets вместо order_seats и order_general_access
+    const { data: tickets, error: ticketsError } = await supabase
+      .from('tickets')
+      .select(`
+        id,
+        ticket_number,
+        qr_code,
+        seat_id,
+        metadata,
+        order_id
+      `)
+      .eq('order_id', orderId)
+      .order('created_at');
 
-    // Получаем информацию о местах отдельным запросом
-    let seats = [];
-    if (orderSeats && orderSeats.length > 0) {
-      const seatIds = orderSeats.map(os => os.seat_id);
-      const { data: seatDetails } = await supabase
+    if (ticketsError) {
+      console.error('Error fetching tickets:', ticketsError);
+      return NextResponse.json(
+        { error: 'Failed to fetch tickets' },
+        { status: 500 }
+      );
+    }
+
+    if (!tickets || tickets.length === 0) {
+      return NextResponse.json(
+        { error: 'No tickets found for this order' },
+        { status: 404 }
+      );
+    }
+
+    // Получаем информацию о местах для билетов с seat_id
+    const seatTickets = tickets.filter(t => t.seat_id);
+    let seatDetails: Array<{id: string, zone: string, row: string, number: string}> = [];
+    if (seatTickets.length > 0) {
+      const seatIds = seatTickets.map(t => t.seat_id);
+      const { data: seats } = await supabase
         .from('seats')
         .select('id, zone, row, number')
         .in('id', seatIds);
-      
-      // Объединяем данные
-      seats = orderSeats.map(orderSeat => {
-        const seatDetail = seatDetails?.find(sd => sd.id === orderSeat.seat_id);
-        return {
-          ...orderSeat,
-          seats: seatDetail ? {
-            zone: seatDetail.zone,
-            row: seatDetail.row,
-            number: seatDetail.number
-          } : null
-        };
-      });
+      seatDetails = seats || [];
     }
-
-    // Получаем general access билеты
-    const { data: generalAccess } = await supabase
-      .from('order_general_access')
-      .select('*')
-      .eq('order_id', orderId);
 
     // Если указан конкретный индекс билета, генерируем только его
     if (ticketIndex) {
       const index = parseInt(ticketIndex) - 1;
+      
+      if (index < 0 || index >= tickets.length) {
+        return NextResponse.json(
+          { error: 'Invalid ticket index' },
+          { status: 400 }
+        );
+      }
+
+      const ticket = tickets[index];
       let ticketInfo = null;
       let filename = '';
       
-      // Определяем, какой билет нужно сгенерировать
-      if (seats && index < seats.length) {
-        const seat = seats[index];
-        // Получаем данные о месте из связанной таблицы
-        const { zone, row, number } = seat.seats;
-        ticketInfo = {
-          type: 'seat',
-          zone,
-          row,
-          number,
-          price: seat.price
-        };
-        filename = `bilet-${index + 1}-zona-${zone}-rand-${row}-loc-${number}.pdf`;
-      } else if (generalAccess) {
-        const gaIndex = index - (seats?.length || 0);
-        let currentIndex = 0;
-        
-        for (const ga of generalAccess) {
-          if (gaIndex >= currentIndex && gaIndex < currentIndex + ga.quantity) {
-            ticketInfo = {
-              type: 'general',
-              name: ga.ticket_name,
-              price: ga.price
-            };
-            filename = `bilet-${index + 1}-${ga.ticket_name.replace(/\s+/g, '-').toLowerCase()}.pdf`;
-            break;
-          }
-          currentIndex += ga.quantity;
+      // Определяем тип билета и получаем информацию
+      if (ticket.seat_id) {
+        // Билет с местом
+        const seatDetail = seatDetails.find(s => s.id === ticket.seat_id);
+        if (seatDetail) {
+          ticketInfo = {
+            type: 'seat',
+            zone: seatDetail.zone,
+            row: seatDetail.row,
+            number: seatDetail.number,
+            qr_code: ticket.qr_code,
+            ticket_number: ticket.ticket_number
+          };
+          filename = `bilet-${index + 1}-zona-${seatDetail.zone}-rand-${seatDetail.row}-loc-${seatDetail.number}.pdf`;
         }
+      } else {
+        // Билет общего доступа
+        const metadata = ticket.metadata || {};
+        ticketInfo = {
+          type: 'general',
+          name: metadata.ticket_name || 'General Access',
+          qr_code: ticket.qr_code,
+          ticket_number: ticket.ticket_number
+        };
+        filename = `bilet-${index + 1}-${(metadata.ticket_name || 'general').replace(/\s+/g, '-').toLowerCase()}.pdf`;
       }
       
       if (!ticketInfo) {
@@ -251,50 +278,49 @@ export async function GET(request: NextRequest) {
     }
 
     // Если индекс не указан, генерируем ZIP архив со всеми билетами
-    const JSZip = (await import('jszip')).default;
-    const zip = new JSZip();
+    const JSZip = await import('jszip');
+    const zip = new JSZip.default();
     
     let ticketCounter = 1;
     const baseTimestamp = Date.now();
     
-    // Добавляем билеты для мест
-    if (seats && seats.length > 0) {
-      for (const seat of seats) {
-        // Получаем данные о месте из связанной таблицы
-        const { zone, row, number } = seat.seats;
-        const ticketInfo = {
-          type: 'seat',
-          zone,
-          row,
-          number,
-          price: seat.price
-        };
-        
-        const pdfBuffer = await generateSingleTicketPDF(order, ticketInfo, ticketCounter);
-        const filename = `bilet-${ticketCounter}-zona-${zone}-rand-${row}-loc-${number}-${baseTimestamp + ticketCounter}.pdf`;
-        
-        zip.file(filename, pdfBuffer);
-        ticketCounter++;
-      }
-    }
-    
-    // Добавляем билеты общего доступа
-    if (generalAccess && generalAccess.length > 0) {
-      for (const ga of generalAccess) {
-        for (let i = 0; i < ga.quantity; i++) {
-          const ticketInfo = {
-            type: 'general',
-            name: ga.ticket_name,
-            price: ga.price
+    // Добавляем все билеты
+    for (const ticket of tickets) {
+      let ticketInfo = null;
+      let filename = '';
+      
+      if (ticket.seat_id) {
+        // Билет с местом
+        const seatDetail = seatDetails.find(s => s.id === ticket.seat_id);
+        if (seatDetail) {
+          ticketInfo = {
+            type: 'seat',
+            zone: seatDetail.zone,
+            row: seatDetail.row,
+            number: seatDetail.number,
+            qr_code: ticket.qr_code,
+            ticket_number: ticket.ticket_number
           };
-          
-          const pdfBuffer = await generateSingleTicketPDF(order, ticketInfo, ticketCounter);
-          const filename = `bilet-${ticketCounter}-${ga.ticket_name.replace(/\s+/g, '-').toLowerCase()}-${baseTimestamp + ticketCounter}.pdf`;
-          
-          zip.file(filename, pdfBuffer);
-          ticketCounter++;
+          filename = `bilet-${ticketCounter}-zona-${seatDetail.zone}-rand-${seatDetail.row}-loc-${seatDetail.number}-${baseTimestamp + ticketCounter}.pdf`;
         }
+      } else {
+        // Билет общего доступа
+        const metadata = ticket.metadata || {};
+        ticketInfo = {
+          type: 'general',
+          name: metadata.ticket_name || 'General Access',
+          qr_code: ticket.qr_code,
+          ticket_number: ticket.ticket_number
+        };
+        filename = `bilet-${ticketCounter}-${(metadata.ticket_name || 'general').replace(/\s+/g, '-').toLowerCase()}-${baseTimestamp + ticketCounter}.pdf`;
       }
+      
+      if (ticketInfo) {
+         const pdfBuffer = await generateSingleTicketPDF(order, ticketInfo, ticketCounter);
+         zip.file(filename, pdfBuffer);
+       }
+      
+      ticketCounter++;
     }
     
     const zipBuffer = await zip.generateAsync({ type: 'nodebuffer' });

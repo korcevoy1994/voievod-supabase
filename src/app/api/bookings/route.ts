@@ -1,70 +1,65 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createSupabaseServerClient } from '@/lib/supabase-server';
+import { createErrorResponse, createSuccessResponse, withErrorHandling, validateRequiredFields } from '@/lib/apiResponse';
 
 // GET - получить все бронирования
-export async function GET(request: NextRequest) {
-  try {
-    const supabase = createSupabaseServerClient();
-    const { searchParams } = new URL(request.url);
-    const userId = searchParams.get('userId');
-    const eventId = searchParams.get('eventId');
-    const status = searchParams.get('status');
+export const GET = withErrorHandling(async (request: NextRequest) => {
+  const supabase = createSupabaseServerClient();
+  const { searchParams } = new URL(request.url);
+  const userId = searchParams.get('userId');
+  const eventId = searchParams.get('eventId');
+  const status = searchParams.get('status');
 
-    let query = supabase
-      .from('bookings')
-      .select(`
-        *,
-        seats:booking_seats(
-          seat_id,
-          seats(
-            zone,
-            row,
-            number,
-            price
-          )
+  let query = supabase
+    .from('bookings')
+    .select(`
+      *,
+      seats:booking_seats(
+        seat_id,
+        seats(
+          zone,
+          row,
+          number,
+          price
         )
-      `);
+      )
+    `);
 
-    if (userId) {
-      query = query.eq('user_id', userId);
-    }
-
-    if (eventId) {
-      query = query.eq('event_id', eventId);
-    }
-
-    if (status) {
-      query = query.eq('status', status);
-    }
-
-    const { data, error } = await query;
-
-    if (error) {
-      return NextResponse.json({ error: error.message }, { status: 500 });
-    }
-
-    return NextResponse.json(data);
-  } catch (error) {
-    return NextResponse.json(
-      { error: 'Internal server error' },
-      { status: 500 }
-    );
+  if (userId) {
+    query = query.eq('user_id', userId);
   }
-}
+
+  if (eventId) {
+    query = query.eq('event_id', eventId);
+  }
+
+  if (status) {
+    query = query.eq('status', status);
+  }
+
+  const { data, error } = await query;
+
+  if (error) {
+    return createErrorResponse(error.message, 500, 'GET /api/bookings');
+  }
+
+  return createSuccessResponse(data);
+}, 'GET /api/bookings')
 
 // POST - создать новое бронирование
-export async function POST(request: NextRequest) {
-  try {
-    const supabase = createSupabaseServerClient();
-    const body = await request.json();
-    const { user_id, event_id, seat_ids, customer_info } = body;
+export const POST = withErrorHandling(async (request: NextRequest) => {
+  const supabase = createSupabaseServerClient();
+  const body = await request.json();
+  const { user_id, event_id, seat_ids, customer_info } = body;
 
-    if (!user_id || !event_id || !seat_ids || !Array.isArray(seat_ids) || seat_ids.length === 0) {
-      return NextResponse.json(
-        { error: 'Missing required fields: user_id, event_id, seat_ids (array)' },
-        { status: 400 }
-      );
-    }
+  // Валидация обязательных полей
+  const validation = validateRequiredFields(body, ['user_id', 'event_id', 'seat_ids']);
+  if (!validation.isValid || !Array.isArray(seat_ids) || seat_ids.length === 0) {
+    return createErrorResponse(
+      'Missing required fields: user_id, event_id, seat_ids (array)',
+      400
+    );
+  }
 
     // Начинаем транзакцию
     const { data: transaction, error: transactionError } = await supabase.rpc('begin_transaction');
@@ -138,33 +133,23 @@ export async function POST(request: NextRequest) {
       // Коммитим транзакцию
       await supabase.rpc('commit_transaction');
 
-      return NextResponse.json(booking, { status: 201 });
+      return createSuccessResponse(booking, 'Booking created successfully', 201);
     } catch (error) {
       // Откатываем транзакцию
       await supabase.rpc('rollback_transaction');
       throw error;
     }
-  } catch (error) {
-    return NextResponse.json(
-      { error: error instanceof Error ? error.message : 'Internal server error' },
-      { status: 500 }
-    );
-  }
-}
+}, 'POST /api/bookings')
 
 // PUT - обновить бронирование
-export async function PUT(request: NextRequest) {
-  try {
-    const supabase = createSupabaseServerClient();
-    const body = await request.json();
-    const { id, status, ...updateData } = body;
+export const PUT = withErrorHandling(async (request: NextRequest) => {
+  const supabase = createSupabaseServerClient();
+  const body = await request.json();
+  const { id, status, ...updateData } = body;
 
-    if (!id) {
-      return NextResponse.json(
-        { error: 'Missing booking ID' },
-        { status: 400 }
-      );
-    }
+  if (!id) {
+    return createErrorResponse('Missing booking ID', 400);
+  }
 
     // Если отменяем бронирование, освобождаем места
     if (status === 'cancelled') {
@@ -182,39 +167,29 @@ export async function PUT(request: NextRequest) {
       }
     }
 
-    const { data, error } = await supabase
-      .from('bookings')
-      .update({ status, ...updateData })
-      .eq('id', id)
-      .select()
-      .single();
+  const { data, error } = await supabase
+    .from('bookings')
+    .update({ status, ...updateData })
+    .eq('id', id)
+    .select()
+    .single();
 
-    if (error) {
-      return NextResponse.json({ error: error.message }, { status: 500 });
-    }
-
-    return NextResponse.json(data);
-  } catch (error) {
-    return NextResponse.json(
-      { error: 'Internal server error' },
-      { status: 500 }
-    );
+  if (error) {
+    return createErrorResponse(error.message, 500, 'PUT /api/bookings');
   }
-}
+
+  return createSuccessResponse(data, 'Booking updated successfully');
+}, 'PUT /api/bookings')
 
 // DELETE - удалить бронирование
-export async function DELETE(request: NextRequest) {
-  try {
-    const supabase = createSupabaseServerClient();
-    const { searchParams } = new URL(request.url);
-    const id = searchParams.get('id');
+export const DELETE = withErrorHandling(async (request: NextRequest) => {
+  const supabase = createSupabaseServerClient();
+  const { searchParams } = new URL(request.url);
+  const id = searchParams.get('id');
 
-    if (!id) {
-      return NextResponse.json(
-        { error: 'Missing booking ID' },
-        { status: 400 }
-      );
-    }
+  if (!id) {
+    return createErrorResponse('Missing booking ID', 400);
+  }
 
     // Освобождаем места перед удалением
     const { data: bookingSeats } = await supabase
@@ -230,20 +205,14 @@ export async function DELETE(request: NextRequest) {
         .in('id', seatIds);
     }
 
-    const { error } = await supabase
-      .from('bookings')
-      .delete()
-      .eq('id', id);
+  const { error } = await supabase
+    .from('bookings')
+    .delete()
+    .eq('id', id);
 
-    if (error) {
-      return NextResponse.json({ error: error.message }, { status: 500 });
-    }
-
-    return NextResponse.json({ message: 'Booking deleted successfully' });
-  } catch (error) {
-    return NextResponse.json(
-      { error: 'Internal server error' },
-      { status: 500 }
-    );
+  if (error) {
+    return createErrorResponse(error.message, 500, 'DELETE /api/bookings');
   }
-}
+
+  return createSuccessResponse(null, 'Booking deleted successfully');
+}, 'DELETE /api/bookings')

@@ -1,67 +1,56 @@
-import { NextResponse } from 'next/server'
+import { NextRequest, NextResponse } from 'next/server'
 import { createSupabaseServerClient } from '@/lib/supabase-server'
+import { createErrorResponse, createSuccessResponse, withErrorHandling } from '@/lib/apiResponse'
 
-export async function GET() {
-  try {
-    const supabase = createSupabaseServerClient()
-    // Получаем цвета всех зон
-    const { data: colors, error } = await supabase
-      .from('zone_colors')
-      .select(`
-        zone,
-        color,
-        name
-      `)
-      .order('zone')
+export const GET = withErrorHandling(async () => {
+  const supabase = createSupabaseServerClient()
+  // Получаем цвета всех зон
+  const { data: colors, error } = await supabase
+    .from('zone_colors')
+    .select(`
+      zone,
+      color,
+      name
+    `)
+    .order('zone')
 
-    if (error) {
-      console.error('Error fetching zone colors:', error)
-      return NextResponse.json({ error: 'Failed to fetch zone colors' }, { status: 500 })
-    }
-
-    // Преобразуем в формат объекта для удобства использования
-    const zoneColors: Record<string, string> = {}
-    colors?.forEach(item => {
-      zoneColors[item.zone] = item.color
-    })
-
-    return NextResponse.json({ 
-      zoneColors,
-      detailedColors: colors 
-    })
-  } catch (error) {
-    console.error('Unexpected error:', error)
-    return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
+  if (error) {
+    return createErrorResponse('Failed to fetch zone colors', 500, 'GET /api/zones/colors')
   }
-}
 
-export async function PUT(request: Request) {
-  try {
-    const supabase = createSupabaseServerClient()
-    const { zone, color, name } = await request.json()
+  // Преобразуем в формат объекта для удобства использования
+  const zoneColors: Record<string, string> = {}
+  colors?.forEach(item => {
+    zoneColors[item.zone] = item.color
+  })
 
-    if (!zone || !color) {
-      return NextResponse.json({ error: 'Zone and color are required' }, { status: 400 })
-    }
+  return createSuccessResponse({ 
+    zoneColors,
+    detailedColors: colors 
+  })
+}, 'GET /api/zones/colors')
 
-    // Обновляем цвет зоны
-    const { data, error } = await supabase
-      .from('zone_colors')
-      .upsert({
-        zone,
-        color,
-        name: name || null
-      })
-      .select()
+export const PUT = withErrorHandling(async (request: NextRequest) => {
+  const supabase = createSupabaseServerClient()
+  const { zone, color, name } = await request.json()
 
-    if (error) {
-      console.error('Error updating zone color:', error)
-      return NextResponse.json({ error: 'Failed to update zone color' }, { status: 500 })
-    }
-
-    return NextResponse.json({ success: true, data })
-  } catch (error) {
-    console.error('Unexpected error:', error)
-    return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
+  if (!zone || !color) {
+    return createErrorResponse('Zone and color are required', 400)
   }
-}
+
+  // Обновляем цвет зоны
+  const { data, error } = await supabase
+    .from('zone_colors')
+    .upsert({
+      zone,
+      color,
+      name: name || null
+    })
+    .select()
+
+  if (error) {
+    return createErrorResponse('Failed to update zone color', 500, 'PUT /api/zones/colors')
+  }
+
+  return createSuccessResponse({ success: true, data })
+}, 'PUT /api/zones/colors')

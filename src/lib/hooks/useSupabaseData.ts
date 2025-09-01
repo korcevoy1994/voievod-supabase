@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
 
 interface SeatData {
   id: string // Теперь короткий 8-символьный ID
@@ -32,93 +32,257 @@ interface EventData {
   status: string
 }
 
-// Хук для получения данных о зонах
+// Глобальный кэш для данных
+class DataCache {
+  private cache = new Map<string, { data: any; timestamp: number; ttl: number }>()
+  private pendingRequests = new Map<string, Promise<any>>()
+
+  get<T>(key: string): T | null {
+    const cached = this.cache.get(key)
+    if (!cached) return null
+    
+    if (Date.now() - cached.timestamp > cached.ttl) {
+      this.cache.delete(key)
+      return null
+    }
+    
+    return cached.data
+  }
+
+  set<T>(key: string, data: T, ttl: number = 30000): void {
+    this.cache.set(key, {
+      data,
+      timestamp: Date.now(),
+      ttl
+    })
+  }
+
+  async getOrFetch<T>(key: string, fetcher: () => Promise<T>, ttl: number = 30000): Promise<T> {
+    // Проверяем кэш
+    const cached = this.get<T>(key)
+    if (cached) return cached
+
+    // Проверяем pending запросы
+    const pending = this.pendingRequests.get(key)
+    if (pending) return pending
+
+    // Создаем новый запрос
+    const request = fetcher().then(data => {
+      this.set(key, data, ttl)
+      this.pendingRequests.delete(key)
+      return data
+    }).catch(error => {
+      this.pendingRequests.delete(key)
+      throw error
+    })
+
+    this.pendingRequests.set(key, request)
+    return request
+  }
+
+  clear(): void {
+    this.cache.clear()
+    this.pendingRequests.clear()
+  }
+
+  delete(key: string): void {
+    this.cache.delete(key)
+    this.pendingRequests.delete(key)
+  }
+}
+
+const globalCache = new DataCache()
+
+// Хук для получения данных о зонах с кэшированием
 export function useZones() {
   const [zones, setZones] = useState<ZoneData[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const mountedRef = useRef(true)
 
   useEffect(() => {
+    mountedRef.current = true
+    
     async function fetchZones() {
       try {
-        const response = await fetch('/api/zones')
-        if (!response.ok) {
-          throw new Error('Failed to fetch zones')
+        const data = await globalCache.getOrFetch(
+          'zones',
+          async () => {
+            const response = await fetch('/api/zones')
+            if (!response.ok) {
+              throw new Error('Failed to fetch zones')
+            }
+            const result = await response.json()
+            return result.data?.zones || result.zones || []
+          },
+          60000 // 1 минута кэш
+        )
+        
+        if (mountedRef.current) {
+          setZones(data)
+          setError(null)
         }
-        const data = await response.json()
-        setZones(data.zones)
       } catch (err) {
-        setError(err instanceof Error ? err.message : 'Unknown error')
+        if (mountedRef.current) {
+          setError(err instanceof Error ? err.message : 'Unknown error')
+        }
       } finally {
-        setLoading(false)
+        if (mountedRef.current) {
+          setLoading(false)
+        }
       }
     }
 
     fetchZones()
+    
+    return () => {
+      mountedRef.current = false
+    }
   }, [])
 
   return { zones, loading, error }
 }
 
-// Хук для получения мест конкретной зоны
+// Хук для получения мест конкретной зоны с кэшированием и предзагрузкой
 export function useZoneSeats(zoneId: string | null) {
   const [seats, setSeats] = useState<SeatData[]>([])
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const mountedRef = useRef(true)
+  const preloadTimeoutRef = useRef<NodeJS.Timeout | undefined>(undefined)
+
+  // Функция для предзагрузки соседних зон
+  const preloadAdjacentZones = useCallback(async (currentZoneId: string) => {
+    const zones = globalCache.get<ZoneData[]>('zones')
+    if (!zones) return
+
+    const currentIndex = zones.findIndex(z => z.zone_id === currentZoneId)
+    if (currentIndex === -1) return
+
+    const adjacentZones = [
+      zones[currentIndex - 1]?.zone_id,
+      zones[currentIndex + 1]?.zone_id
+    ].filter(Boolean)
+
+    // Предзагружаем соседние зоны с задержкой
+    preloadTimeoutRef.current = setTimeout(() => {
+      adjacentZones.forEach(zoneId => {
+        globalCache.getOrFetch(
+          `seats-${zoneId}`,
+          async () => {
+            const response = await fetch(`/api/zones/${zoneId}/seats`)
+            if (!response.ok) throw new Error('Failed to preload seats')
+            const result = await response.json()
+            return result.seats
+          },
+          30000 // 30 секунд кэш для предзагруженных данных
+        ).catch(() => {}) // Игнорируем ошибки предзагрузки
+      })
+    }, 500) // Задержка 500мс для предзагрузки
+  }, [])
 
   useEffect(() => {
+    mountedRef.current = true
+    
     if (!zoneId) {
       setSeats([])
-      return
+      setLoading(false)
+      return () => {}
     }
 
     async function fetchSeats() {
       setLoading(true)
       try {
-        const response = await fetch(`/api/zones/${zoneId}/seats`)
-        if (!response.ok) {
-          throw new Error('Failed to fetch seats')
+        const data = await globalCache.getOrFetch(
+          `seats-${zoneId}`,
+          async () => {
+            const response = await fetch(`/api/zones/${zoneId}/seats`)
+            if (!response.ok) {
+              throw new Error('Failed to fetch seats')
+            }
+            const result = await response.json()
+            return result.seats
+          },
+          45000 // 45 секунд кэш
+        )
+        
+        if (mountedRef.current) {
+          setSeats(data)
+          setError(null)
+          
+          // Запускаем предзагрузку соседних зон
+           preloadAdjacentZones(zoneId as string)
         }
-        const data = await response.json()
-        setSeats(data.seats)
       } catch (err) {
-        setError(err instanceof Error ? err.message : 'Unknown error')
+        if (mountedRef.current) {
+          setError(err instanceof Error ? err.message : 'Unknown error')
+        }
       } finally {
-        setLoading(false)
+        if (mountedRef.current) {
+          setLoading(false)
+        }
       }
     }
 
     fetchSeats()
-  }, [zoneId])
+    
+    return () => {
+      mountedRef.current = false
+      if (preloadTimeoutRef.current) {
+        clearTimeout(preloadTimeoutRef.current)
+      }
+    }
+  }, [zoneId, preloadAdjacentZones])
 
   return { seats, loading, error }
 }
 
-// Хук для получения цен события
+// Хук для получения цен события с кэшированием
 export function useEventPricing(eventId: string) {
   const [zonePrices, setZonePrices] = useState<Record<string, number>>({})
   const [detailedPricing, setDetailedPricing] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const mountedRef = useRef(true)
 
   useEffect(() => {
+    mountedRef.current = true
+    
     async function fetchPricing() {
       try {
-        const response = await fetch(`/api/events/${eventId}/pricing`)
-        if (!response.ok) {
-          throw new Error('Failed to fetch pricing')
+        const data = await globalCache.getOrFetch(
+          `pricing-${eventId}`,
+          async () => {
+            const response = await fetch(`/api/events/${eventId}/pricing`)
+            if (!response.ok) {
+              throw new Error('Failed to fetch pricing')
+            }
+            return await response.json()
+          },
+          120000 // 2 минуты кэш для цен
+        )
+        
+        if (mountedRef.current) {
+          setZonePrices(data.zonePrices)
+          setDetailedPricing(data.detailedPricing)
+          setError(null)
         }
-        const data = await response.json()
-        setZonePrices(data.zonePrices)
-        setDetailedPricing(data.detailedPricing)
       } catch (err) {
-        setError(err instanceof Error ? err.message : 'Unknown error')
+        if (mountedRef.current) {
+          setError(err instanceof Error ? err.message : 'Unknown error')
+        }
       } finally {
-        setLoading(false)
+        if (mountedRef.current) {
+          setLoading(false)
+        }
       }
     }
 
     fetchPricing()
+    
+    return () => {
+      mountedRef.current = false
+    }
   }, [eventId])
 
   return { zonePrices, detailedPricing, loading, error }

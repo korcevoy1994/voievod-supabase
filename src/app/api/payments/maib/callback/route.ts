@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { maibClient } from '@/lib/maib-client';
 import { createSupabaseServerClient } from '@/lib/supabase-server';
+import { logger } from '@/lib/logger';
 
 // POST - обработка callback уведомлений от MAIB
 export async function POST(request: NextRequest) {
@@ -8,7 +9,7 @@ export async function POST(request: NextRequest) {
     const supabase = createSupabaseServerClient();
     const body = await request.json();
     
-    console.log('MAIB callback received:', {
+    logger.info('MAIB callback received', {
       headers: Object.fromEntries(request.headers.entries()),
       body: JSON.stringify(body, null, 2)
     });
@@ -17,7 +18,7 @@ export async function POST(request: NextRequest) {
     const signature = body.signature || request.headers.get('x-maib-signature') || '';
     
     if (!signature) {
-      console.error('No signature provided in MAIB callback');
+      logger.error('No signature provided in MAIB callback');
       return NextResponse.json(
         { error: 'No signature provided' },
         { status: 400 }
@@ -26,7 +27,7 @@ export async function POST(request: NextRequest) {
 
     // Проверяем подпись callback
     if (!maibClient.verifyCallback(body, signature)) {
-      console.error('Invalid MAIB callback signature');
+      logger.error('Invalid MAIB callback signature');
       return NextResponse.json(
         { error: 'Invalid signature' },
         { status: 401 }
@@ -64,7 +65,7 @@ export async function POST(request: NextRequest) {
       .single();
 
     if (paymentError || !payment) {
-      console.error('Payment not found for transaction:', transactionId);
+      logger.error('Payment not found for transaction', { transactionId });
       return NextResponse.json(
         { error: 'Payment not found' },
         { status: 404 }
@@ -95,7 +96,7 @@ export async function POST(request: NextRequest) {
         newStatus = 'pending';
         break;
       default:
-        console.log(`Unknown MAIB status: ${status}`);
+        logger.warn(`Unknown MAIB status: ${status}`);
         newStatus = 'pending';
     }
 
@@ -129,7 +130,7 @@ export async function POST(request: NextRequest) {
       .eq('id', payment.id);
 
     if (updateError) {
-      console.error('Error updating payment:', updateError);
+      logger.error('Error updating payment', updateError);
       return NextResponse.json(
         { error: 'Failed to update payment' },
         { status: 500 }
@@ -159,7 +160,7 @@ export async function POST(request: NextRequest) {
         .eq('id', payment.order_id);
 
       if (orderUpdateError) {
-        console.error('Error updating order status:', orderUpdateError);
+        logger.error('Error updating order status', orderUpdateError);
       }
 
       // Если платеж успешен, генерируем QR код если его еще нет
@@ -176,14 +177,14 @@ export async function POST(request: NextRequest) {
           });
 
           if (qrError) {
-            console.error('Error generating QR code:', qrError);
+            logger.error('Error generating QR code', qrError);
           }
         }
       }
     }
 
     // Логируем успешную обработку callback
-    console.log(`MAIB callback processed successfully:`, {
+    logger.info('MAIB callback processed successfully', {
       transactionId,
       status: newStatus,
       orderId,
@@ -195,7 +196,7 @@ export async function POST(request: NextRequest) {
       message: 'Callback processed successfully'
     });
   } catch (error) {
-    console.error('Error processing MAIB callback:', error);
+    logger.error('Error processing MAIB callback', error);
     return NextResponse.json(
       { error: 'Internal server error' },
       { status: 500 }

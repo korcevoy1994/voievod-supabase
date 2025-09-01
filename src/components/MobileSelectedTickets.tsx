@@ -7,6 +7,14 @@ interface GeneralAccessTicket {
   quantity: number;
 }
 
+interface VipTicket {
+  id: string;
+  name: string;
+  price: number;
+  quantity: number;
+  zone: string;
+}
+
 interface SeatWithPrice {
   id: string;
   zone: string;
@@ -21,10 +29,12 @@ interface MobileSelectedTicketsProps {
   onRemoveSeat?: (seatId: string) => void
   generalAccessTickets?: GeneralAccessTicket[]
   onGeneralAccessRemove?: (ticketId: string) => void
+  vipTickets?: VipTicket[]
+  onVipRemove?: (ticketId: string) => void
   onCheckout?: () => void
 }
 
-const MobileSelectedTickets: React.FC<MobileSelectedTicketsProps> = ({ selectedSeats, zonePrices, onRemoveSeat, generalAccessTickets = [], onGeneralAccessRemove, onCheckout }) => {
+const MobileSelectedTickets: React.FC<MobileSelectedTicketsProps> = ({ selectedSeats, zonePrices, onRemoveSeat, generalAccessTickets = [], onGeneralAccessRemove, vipTickets = [], onVipRemove, onCheckout }) => {
   const [seatsWithPrices, setSeatsWithPrices] = useState<SeatWithPrice[]>([])
   const [loading, setLoading] = useState(false)
 
@@ -67,12 +77,13 @@ const MobileSelectedTickets: React.FC<MobileSelectedTicketsProps> = ({ selectedS
         const fallbackSeats = Object.entries(selectedSeats).flatMap(([zoneId, seatIds]) => {
           const zonePrice = zonePrices[zoneId] || 0
           return seatIds.map(seatId => {
-            const [, row, number] = seatId.split('-')
+            // Не можем парсить ID, так как это теперь TEXT ID из базы
+            // Используем пустые значения для row/number в fallback режиме
             return {
               id: seatId,
               zone: zoneId,
-              row: row || '',
-              number: number || '',
+              row: '',
+              number: '',
               price: zonePrice
             }
           })
@@ -89,8 +100,9 @@ const MobileSelectedTickets: React.FC<MobileSelectedTicketsProps> = ({ selectedS
   const allTickets = seatsWithPrices
 
   const totalPrice = allTickets.reduce((sum, ticket) => sum + ticket.price, 0) + 
-                     generalAccessTickets.reduce((sum, ticket) => sum + (ticket.price * ticket.quantity), 0)
-  const totalTickets = allTickets.length + generalAccessTickets.reduce((sum, ticket) => sum + ticket.quantity, 0)
+                     generalAccessTickets.reduce((sum, ticket) => sum + (ticket.price * ticket.quantity), 0) +
+                     vipTickets.reduce((sum, ticket) => sum + (ticket.price * ticket.quantity), 0)
+  const totalTickets = allTickets.length + generalAccessTickets.reduce((sum, ticket) => sum + ticket.quantity, 0) + vipTickets.reduce((sum, ticket) => sum + ticket.quantity, 0)
 
   if (totalTickets === 0) {
     return null
@@ -154,6 +166,33 @@ const MobileSelectedTickets: React.FC<MobileSelectedTicketsProps> = ({ selectedS
                     <div className="flex flex-row items-center gap-0.5 sm:gap-1">
                       <span className="text-white text-[10px] sm:text-[11px] font-black uppercase truncate" style={{fontFamily: 'Inter, var(--font-geist-sans), Arial, sans-serif'}}>
                         {ticket.quantity} bilet{ticket.quantity > 1 ? 'e' : ''}
+                      </span>
+                    </div>
+                    <div className="text-green-400 font-bold text-[11px] sm:text-[13px] mt-0.5">{ticket.price * ticket.quantity} Lei</div>
+                  </div>
+                ))}
+                
+                {vipTickets.map((ticket) => (
+                  <div key={ticket.id} className="flex flex-col min-w-[120px] sm:min-w-[140px] bg-purple-700/80 rounded-lg shadow px-1.5 sm:px-2 py-1 sm:py-1.5 mr-1 relative border border-purple-600/60 flex-shrink-0">
+                    <div className="flex items-center justify-between mb-0.5 sm:mb-1">
+                      <span className="bg-purple-900 text-purple-200 text-[10px] sm:text-[11px] font-extrabold uppercase rounded px-1 sm:px-1.5 py-0.5" style={{fontFamily: 'Inter, var(--font-geist-sans), Arial, sans-serif'}}>
+                        {ticket.name}
+                      </span>
+                      {onVipRemove && (
+                        <button
+                          className="ml-1 w-4 h-4 sm:w-5 sm:h-5 flex items-center justify-center rounded-full bg-red-500/20 text-red-400 hover:bg-red-500/30 hover:text-red-300 transition-all duration-200 cursor-pointer border border-red-500/30 shrink-0"
+                          onClick={() => onVipRemove(ticket.id)}
+                          aria-label="Șterge biletul"
+                        >
+                          <svg width="10" height="10" className="sm:w-3 sm:h-3" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg">
+                            <path d="M12 4L4 12M4 4L12 12" stroke="currentColor" strokeWidth="2" strokeLinecap="round"/>
+                          </svg>
+                        </button>
+                      )}
+                    </div>
+                    <div className="flex flex-row items-center gap-0.5 sm:gap-1">
+                      <span className="text-white text-[10px] sm:text-[11px] font-black uppercase truncate" style={{fontFamily: 'Inter, var(--font-geist-sans), Arial, sans-serif'}}>
+                        Întreaga zonă
                       </span>
                     </div>
                     <div className="text-green-400 font-bold text-[11px] sm:text-[13px] mt-0.5">{ticket.price * ticket.quantity} Lei</div>

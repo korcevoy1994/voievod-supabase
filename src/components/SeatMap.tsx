@@ -1,19 +1,8 @@
 'use client'
 import { forwardRef, useEffect, useRef, useState } from 'react'
-import { zone201SeatData } from '@/data/zone-201-seats'
-import { zone202SeatData } from '@/data/zone-202-seats'
-import { zone203SeatData } from '@/data/zone-203-seats'
-import { zone204SeatData } from '@/data/zone-204-seats'
-import { zone205SeatData } from '@/data/zone-205-seats'
-import { zone206SeatData } from '@/data/zone-206-seats'
-import { zone207SeatData } from '@/data/zone-207-seats'
-import { zone208SeatData } from '@/data/zone-208-seats'
-import { zone209SeatData } from '@/data/zone-209-seats'
-import { zone210SeatData } from '@/data/zone-210-seats'
-import { zone211SeatData } from '@/data/zone-211-seats'
-import { zone212SeatData } from '@/data/zone-212-seats'
-import { zone213SeatData } from '@/data/zone-213-seats'
+import { getZoneData } from '@/lib/zoneData'
 import { TransformWrapper, TransformComponent, ReactZoomPanPinchContentRef } from 'react-zoom-pan-pinch'
+import { logger } from '@/lib/logger'
 
 interface SeatMapProps {
   zoneId: string
@@ -54,7 +43,7 @@ const SeatMap = forwardRef<ReactZoomPanPinchContentRef, SeatMapProps>(({ zoneId,
         // svg.style.background = 'red' // debug
       
         // Add interactivity to seats
-        const seats = zoneId === '201' ? zone201SeatData : zoneId === '202' ? zone202SeatData : zoneId === '203' ? zone203SeatData : zoneId === '204' ? zone204SeatData : zoneId === '205' ? zone205SeatData : zoneId === '206' ? zone206SeatData : zoneId === '207' ? zone207SeatData : zoneId === '208' ? zone208SeatData : zoneId === '209' ? zone209SeatData : zoneId === '210' ? zone210SeatData : zoneId === '211' ? zone211SeatData : zoneId === '212' ? zone212SeatData : zoneId === '213' ? zone213SeatData : []
+        const seats = getZoneData(zoneId)
         seats.forEach(seat => {
           // Convert seat ID format: \"202-K-01\" -> \"K - 01\" (for 201) or \"K - 1\" (for 202)
           const [ , row, number] = seat.id.split('-')
@@ -62,7 +51,7 @@ const SeatMap = forwardRef<ReactZoomPanPinchContentRef, SeatMapProps>(({ zoneId,
           const seatElement = svg.querySelector(`[id='${svgSeatId}']`) as SVGElement
           
           if (!seatElement) {
-            console.warn(`Seat element not found for ID: ${svgSeatId}`)
+            logger.warn(`Seat element not found for ID: ${svgSeatId}`)
             return
           }
 
@@ -149,7 +138,7 @@ const SeatMap = forwardRef<ReactZoomPanPinchContentRef, SeatMapProps>(({ zoneId,
         })
       })
       .catch(error => {
-        console.error('Error loading SVG:', error)
+        logger.error('Error loading SVG', error)
       })
   }, [selectedSeats, onSeatClick, zoneId])
 
@@ -201,4 +190,4 @@ const SeatMap = forwardRef<ReactZoomPanPinchContentRef, SeatMapProps>(({ zoneId,
 
 SeatMap.displayName = 'SeatMap'
 
-export default SeatMap 
+export default SeatMap

@@ -17,13 +17,16 @@ async function applySqlFix() {
     console.log('🔧 Applying SQL fix for generate_qr_code function...');
     
     // Read the SQL file
-    const sqlContent = fs.readFileSync('./fix-qr-function.sql', 'utf8');
+    const sqlContent = fs.readFileSync('./fix_zone_colors.sql', 'utf8');
     
     // Split SQL into individual statements
     const statements = sqlContent
+      .split('\n')
+      .filter(line => line.trim().length > 0 && !line.trim().startsWith('--'))
+      .join('\n')
       .split(';')
       .map(stmt => stmt.trim())
-      .filter(stmt => stmt.length > 0 && !stmt.startsWith('--'));
+      .filter(stmt => stmt.length > 0);
     
     console.log(`📝 Found ${statements.length} SQL statements to execute`);
     

@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from 'next/server'
 import { withProtectedAccess, withPublicAccess, validateRequestData, sanitizeInput } from '@/middleware/sessionMiddleware'
 import { SecureSessionManager } from '@/lib/secureSessionManager'
 import { createSupabaseServerClient } from '@/lib/supabase-server'
+import { logger } from '@/lib/logger'
+
 
 interface OrderSeat {
   id: string // Теперь короткий 8-символьный ID
@@ -18,6 +20,13 @@ interface OrderGeneralAccess {
   quantity: number
 }
 
+interface OrderVipTicket {
+  id: string
+  name: string
+  price: number
+  quantity: number
+}
+
 interface CreateOrderRequest {
   userId: string
   customerInfo: {
@@ -28,6 +37,7 @@ interface CreateOrderRequest {
   }
   seats: OrderSeat[]
   generalAccess: OrderGeneralAccess[]
+  vipTickets: OrderVipTicket[]
   totalPrice: number
   totalTickets: number
   paymentMethod: string
@@ -35,16 +45,17 @@ interface CreateOrderRequest {
 
 export const POST = withPublicAccess(async (request: NextRequest) => {
   try {
-    console.log('🔄 POST /api/orders - начало обработки запроса')
+    logger.dev('POST /api/orders - начало обработки запроса')
     const supabase = createSupabaseServerClient()
     const body: CreateOrderRequest = await request.json()
-    console.log('📝 Получены данные запроса:', JSON.stringify(body, null, 2))
+    logger.dev('Получены данные запроса', body)
     
     const {
       userId,
       customerInfo,
       seats,
       generalAccess,
+      vipTickets,
       totalPrice,
       totalTickets,
       paymentMethod
@@ -60,13 +71,13 @@ export const POST = withPublicAccess(async (request: NextRequest) => {
 
     const validation = validateRequestData(body, validationSchema)
     if (!validation.isValid) {
-      console.error('❌ Ошибка валидации данных:', validation.errors)
+      logger.error('Ошибка валидации данных', validation.errors)
       return NextResponse.json(
         { error: 'Ошибка валидации данных', details: validation.errors },
         { status: 400 }
       )
     }
-    console.log('✅ Валидация данных прошла успешно')
+    logger.dev('Валидация данных прошла успешно')
 
     // Проверка userId (базовая валидация)
     if (!userId || typeof userId !== 'string') {
@@ -94,7 +105,7 @@ export const POST = withPublicAccess(async (request: NextRequest) => {
       .limit(1);
     
     if (checkError) {
-      console.error('Error checking existing user:', checkError);
+      logger.error('Error checking existing user', checkError);
       return NextResponse.json(
         { error: 'Ошибка проверки пользователя', details: checkError.message },
         { status: 500 }
@@ -117,14 +128,14 @@ export const POST = withPublicAccess(async (request: NextRequest) => {
         .eq('id', actualUserId);
       
       if (updateError) {
-        console.error('Error updating existing user:', updateError);
+        logger.error('Error updating existing user', updateError);
         return NextResponse.json(
           { error: 'Ошибка обновления пользователя', details: updateError.message },
           { status: 500 }
         );
       }
       
-      console.log('Updated existing user:', actualUserId);
+      // User updated successfully
     } else {
       // User doesn't exist, create new one
       const { error: insertError } = await supabase
@@ -139,20 +150,20 @@ export const POST = withPublicAccess(async (request: NextRequest) => {
         });
       
       if (insertError) {
-        console.error('Error creating new user:', insertError);
+        logger.error('Error creating new user', insertError);
         return NextResponse.json(
           { error: 'Ошибка создания пользователя', details: insertError.message },
           { status: 500 }
         );
       }
       
-      console.log('Created new user:', userId);
+      // User created successfully
     }
 
 
 
     // Получаем ID события (предполагаем, что у нас одно активное событие)
-    console.log('🔍 Поиск активного события...')
+    logger.dev('Поиск активного события...')
     const { data: eventData, error: eventError } = await supabase
       .from('events')
       .select('id')
@@ -161,22 +172,21 @@ export const POST = withPublicAccess(async (request: NextRequest) => {
       .single()
 
     if (eventError || !eventData) {
-      console.error('❌ Ошибка получения события:', eventError)
-      console.log('🔍 Проверим все события в базе...')
+      logger.error('Ошибка получения события', eventError)
+      logger.dev('Проверим все события в базе...')
       const { data: allEvents } = await supabase.from('events').select('id, title, status')
-      console.log('📋 Все события:', allEvents)
+      logger.dev('Все события', allEvents)
       return NextResponse.json(
         { error: 'Событие не найдено' },
         { status: 500 }
       )
     }
-    console.log('✅ Найдено активное событие:', eventData.id)
+    logger.dev('Найдено активное событие', eventData.id)
 
-    // Начинаем транзакцию
+    // Создаем заказ и получаем сгенерированный UUID
     const { data: orderData, error: orderError } = await supabase
       .from('orders')
       .insert({
-        id: crypto.randomUUID(),
         user_id: actualUserId,
         customer_email: sanitizedCustomerInfo.email,
         customer_first_name: sanitizedCustomerInfo.firstName,
@@ -186,13 +196,14 @@ export const POST = withPublicAccess(async (request: NextRequest) => {
         total_tickets: totalTickets,
         payment_method: paymentMethod,
         status: 'pending',
+        event_id: eventData.id,
         created_at: new Date().toISOString()
       })
       .select('id')
       .single()
 
     if (orderError) {
-      console.error('Ошибка создания заказа:', orderError)
+      logger.error('Ошибка создания заказа', orderError)
       return NextResponse.json(
         { error: 'Ошибка создания заказа' },
         { status: 500 }
@@ -225,44 +236,37 @@ export const POST = withPublicAccess(async (request: NextRequest) => {
       .eq('id', orderId)
 
     if (updateError) {
-      console.error('Ошибка обновления QR кода и PDF URL:', updateError)
+      logger.error('Ошибка обновления QR кода и PDF URL', updateError)
     } else {
-      console.log('QR код и PDF URL успешно добавлены для заказа:', orderId)
+      logger.dev('QR код и PDF URL успешно добавлены для заказа', orderId)
     }
 
     // Сохраняем места в заказе
     if (seats.length > 0) {
       const orderSeats = []
       
-      // Получаем UUID мест из базы данных по zone, row, number
+      // Проверяем существование мест в базе данных
       for (const seat of seats) {
-        // Парсим составной ID места (формат: zone-row-number)
-        const [zone, row, number] = seat.id.split('-')
-        
         const { data: seatData, error: seatError } = await supabase
           .from('seats')
           .select('id')
-          .eq('zone', zone)
-          .eq('row', row)
-          .eq('number', number)
+          .eq('id', seat.id)
           .single()
         
         if (seatError || !seatData) {
-          console.error(`Ошибка поиска места ${zone}-${row}-${number}:`, seatError)
+          logger.error(`Ошибка поиска места ${seat.id}`, seatError)
           // Откатываем заказ
           await supabase.from('orders').delete().eq('id', orderId)
           return NextResponse.json(
-            { error: `Место ${zone}-${row}-${number} не найдено` },
+            { error: `Место ${seat.id} не найдено` },
             { status: 500 }
           )
         }
         
         orderSeats.push({
-          id: crypto.randomUUID(),
           order_id: orderId,
-          seat_id: seatData.id, // Используем UUID из базы данных
-          price: seat.price,
-          event_id: eventData.id
+          seat_id: seat.id, // Используем TEXT ID из базы данных
+          price: seat.price
         })
       }
 
@@ -271,7 +275,7 @@ export const POST = withPublicAccess(async (request: NextRequest) => {
         .insert(orderSeats)
 
       if (seatsError) {
-        console.error('Ошибка сохранения мест:', seatsError)
+        logger.error('Ошибка сохранения мест', seatsError)
         // Откатываем заказ
         await supabase.from('orders').delete().eq('id', orderId)
         return NextResponse.json(
@@ -283,8 +287,7 @@ export const POST = withPublicAccess(async (request: NextRequest) => {
 
     // Сохраняем general access билеты
     if (generalAccess.length > 0) {
-      const orderGeneralAccess = generalAccess.map(ticket => ({
-        id: crypto.randomUUID(),
+      const orderGeneralAccess = generalAccess.map((ticket) => ({
         order_id: orderId,
         ticket_name: ticket.name,
         price: ticket.price,
@@ -297,7 +300,7 @@ export const POST = withPublicAccess(async (request: NextRequest) => {
         .insert(orderGeneralAccess)
 
       if (generalError) {
-        console.error('Ошибка сохранения general access:', generalError)
+        logger.error('Ошибка сохранения general access', generalError)
         // Откатываем заказ
         await supabase.from('orders').delete().eq('id', orderId)
         return NextResponse.json(
@@ -307,42 +310,207 @@ export const POST = withPublicAccess(async (request: NextRequest) => {
       }
     }
 
+    // Сохраняем VIP билеты
+    if (vipTickets && vipTickets.length > 0) {
+      const orderVipTickets = vipTickets.map((ticket) => ({
+        order_id: orderId,
+        vip_zone_id: ticket.id,
+        ticket_name: ticket.name,
+        price: ticket.price,
+        quantity: ticket.quantity,
+        event_id: eventData.id
+      }))
+
+      const { error: vipError } = await supabase
+        .from('order_vip_tickets')
+        .insert(orderVipTickets)
+
+      if (vipError) {
+        logger.error('Ошибка сохранения VIP билетов', vipError)
+        // Откатываем заказ
+        await supabase.from('orders').delete().eq('id', orderId)
+        return NextResponse.json(
+          { error: 'Ошибка сохранения VIP билетов' },
+          { status: 500 }
+        )
+      }
+    }
+
     // Обновляем статус мест на "sold" (если это места)
     if (seats.length > 0) {
-      // Обновляем каждое место отдельно по zone, row, number
-      for (const seat of seats) {
-        // Парсим составной ID места (формат: zone-row-number)
-        const [zone, row, number] = seat.id.split('-')
-        
-        const { error: updateError } = await supabase
-          .from('seats')
-          .update({ 
-            status: 'sold', 
-            reserved_by: actualUserId,
-            expires_at: null,
-            updated_at: new Date().toISOString() 
-          })
-          .eq('zone', zone)
-          .eq('row', row)
-          .eq('number', number)
+      const seatIds = seats.map(seat => seat.id)
+      
+      const { error: updateError } = await supabase
+        .from('seats')
+        .update({ 
+          status: 'sold',
+          updated_at: new Date().toISOString() 
+        })
+        .in('id', seatIds)
 
-        if (updateError) {
-          console.error(`Ошибка обновления статуса места ${seat.id}:`, updateError)
-          // Не откатываем заказ, но логируем ошибку
-        }
+      if (updateError) {
+        logger.error('Ошибка обновления статуса мест', updateError)
+        // Не откатываем заказ, но логируем ошибку
       }
     }
 
     // Создаем билеты для заказа
-    const { error: ticketsError } = await supabase.rpc('create_tickets_from_order', {
-      order_uuid: orderId
-    })
+    logger.dev('Создание билетов для заказа', orderId)
+    
+    try {
+      const ticketsToCreate = []
 
-    if (ticketsError) {
-      console.error('Ошибка создания билетов:', ticketsError)
-      // Не откатываем заказ, билеты можно создать позже
-    } else {
-      console.log('Билеты успешно созданы для заказа:', orderId)
+      // Создаем билеты для мест
+      if (seats.length > 0) {
+        for (let i = 0; i < seats.length; i++) {
+          const seat = seats[i]
+          
+          // Получаем данные места из базы данных
+          const { data: seatData, error: seatError } = await supabase
+            .from('seats')
+            .select('id, zone, row, number')
+            .eq('id', seat.id)
+            .single()
+
+          if (seatError || !seatData) {
+            logger.error(`Ошибка получения данных места ${seat.id}`, seatError)
+            continue // Пропускаем это место, если не можем найти данные
+          }
+
+          const ticketNumber = `VOEV-${seatData.zone}-${seatData.row}-${seatData.number}-${Date.now()}-${i}`
+          
+          const metadata = {
+            ticket_type: 'seat',
+            seat_zone: seatData.zone,
+            seat_row: seatData.row,
+            seat_number: seatData.number,
+            price: seat.price,
+            holder_name: `${sanitizedCustomerInfo.firstName} ${sanitizedCustomerInfo.lastName}`,
+            holder_email: sanitizedCustomerInfo.email,
+            holder_phone: sanitizedCustomerInfo.phone || null,
+            order_number: orderNumber
+          }
+          
+          const qrData = {
+            ticket_number: ticketNumber,
+            order_id: orderId,
+            seat_zone: seatData.zone,
+            seat_row: seatData.row,
+            seat_number: seatData.number,
+            holder_name: `${sanitizedCustomerInfo.firstName} ${sanitizedCustomerInfo.lastName}`,
+            event_id: eventData.id,
+            timestamp: Date.now()
+          }
+          
+          const qrCode = JSON.stringify(qrData)
+
+          ticketsToCreate.push({
+            order_id: orderId,
+            event_id: eventData.id,
+            ticket_number: ticketNumber,
+            qr_code: qrCode,
+            seat_id: seatData.id, // Используем реальный seat_id
+            status: 'valid',
+            metadata: JSON.stringify(metadata)
+          })
+        }
+      }
+
+      // Создаем билеты для general access
+      if (generalAccess.length > 0) {
+        for (const gaTicket of generalAccess) {
+          for (let i = 0; i < gaTicket.quantity; i++) {
+            const ticketNumber = `VOEV-GA-${gaTicket.name.replace(/\s+/g, '-')}-${Date.now()}-${i}`
+            
+            const metadata = {
+              ticket_type: 'general_access',
+              ticket_name: gaTicket.name,
+              price: gaTicket.price,
+              holder_name: `${sanitizedCustomerInfo.firstName} ${sanitizedCustomerInfo.lastName}`,
+              holder_email: sanitizedCustomerInfo.email,
+              holder_phone: sanitizedCustomerInfo.phone || null,
+              order_number: orderNumber
+            }
+            
+            const qrData = {
+              ticket_number: ticketNumber,
+              order_id: orderId,
+              ticket_type: 'general_access',
+              ticket_name: gaTicket.name,
+              holder_name: `${sanitizedCustomerInfo.firstName} ${sanitizedCustomerInfo.lastName}`,
+              event_id: eventData.id,
+              timestamp: Date.now()
+            }
+            
+            const qrCode = JSON.stringify(qrData)
+
+            ticketsToCreate.push({
+              order_id: orderId,
+              event_id: eventData.id,
+              ticket_number: ticketNumber,
+              qr_code: qrCode,
+              seat_id: null,
+              status: 'valid',
+              metadata: JSON.stringify(metadata)
+            })
+          }
+        }
+      }
+
+      // Создаем билеты для VIP зон
+      if (vipTickets && vipTickets.length > 0) {
+        for (const vipTicket of vipTickets) {
+          for (let i = 0; i < vipTicket.quantity; i++) {
+            const ticketNumber = `VOEV-VIP-${vipTicket.name.replace(/\s+/g, '-')}-${Date.now()}-${i}`
+            
+            const metadata = {
+              ticket_type: 'vip',
+              ticket_name: vipTicket.name,
+              price: vipTicket.price,
+              holder_name: `${sanitizedCustomerInfo.firstName} ${sanitizedCustomerInfo.lastName}`,
+              holder_email: sanitizedCustomerInfo.email,
+              holder_phone: sanitizedCustomerInfo.phone || null,
+              order_number: orderNumber
+            }
+            
+            const qrData = {
+              ticket_number: ticketNumber,
+              order_id: orderId,
+              ticket_type: 'vip',
+              ticket_name: vipTicket.name,
+              holder_name: `${sanitizedCustomerInfo.firstName} ${sanitizedCustomerInfo.lastName}`,
+              event_id: eventData.id,
+              timestamp: Date.now()
+            }
+            
+            const qrCode = JSON.stringify(qrData)
+
+            ticketsToCreate.push({
+              order_id: orderId,
+              event_id: eventData.id,
+              ticket_number: ticketNumber,
+              qr_code: qrCode,
+              seat_id: null,
+              status: 'valid',
+              metadata: JSON.stringify(metadata)
+            })
+          }
+        }
+      }
+
+      if (ticketsToCreate.length > 0) {
+        const { error: ticketsError } = await supabase
+          .from('tickets')
+          .insert(ticketsToCreate)
+
+        if (ticketsError) {
+          logger.error('Ошибка создания билетов', ticketsError)
+        } else {
+          logger.dev('Билеты успешно созданы', ticketsToCreate.length)
+        }
+      }
+    } catch (ticketError) {
+      logger.error('Ошибка в процессе создания билетов', ticketError)
     }
 
     return NextResponse.json(
@@ -356,8 +524,7 @@ export const POST = withPublicAccess(async (request: NextRequest) => {
     )
 
   } catch (error) {
-    console.error('❌ Критическая ошибка при создании заказа:', error)
-    console.error('❌ Stack trace:', error instanceof Error ? error.stack : 'No stack trace')
+    logger.error('Критическая ошибка при создании заказа', error)
     return NextResponse.json(
       { error: 'Внутренняя ошибка сервера', details: error instanceof Error ? error.message : 'Unknown error' },
       { status: 500 }
@@ -398,7 +565,7 @@ export const GET = withPublicAccess(async (request: NextRequest) => {
       .order('created_at', { ascending: false })
 
     if (error) {
-      console.error('Ошибка получения заказов:', error)
+      logger.error('Ошибка получения заказов', error)
       return NextResponse.json(
         { error: 'Ошибка получения заказов' },
         { status: 500 }
@@ -408,7 +575,7 @@ export const GET = withPublicAccess(async (request: NextRequest) => {
     return NextResponse.json({ orders })
 
   } catch (error) {
-    console.error('Ошибка при получении заказов:', error)
+    logger.error('Ошибка при получении заказов', error)
     return NextResponse.json(
       { error: 'Внутренняя ошибка сервера' },
       { status: 500 }

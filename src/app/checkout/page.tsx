@@ -23,9 +23,17 @@ interface CheckoutGeneralAccess {
   quantity: number
 }
 
+interface CheckoutVipTicket {
+  id: string
+  name: string
+  price: number
+  quantity: number
+}
+
 interface CheckoutData {
   seats: CheckoutSeat[]
   generalAccess: CheckoutGeneralAccess[]
+  vipTickets: CheckoutVipTicket[]
   totalPrice: number
   totalTickets: number
 }
@@ -44,6 +52,7 @@ const CheckoutPageContent: React.FC = () => {
   const [paymentMethod, setPaymentMethod] = useState('card')
   const [paymentProvider, setPaymentProvider] = useState('maib')
   const [isProcessing, setIsProcessing] = useState(false)
+  const [agreeToTerms, setAgreeToTerms] = useState(false)
   
 
 
@@ -137,6 +146,7 @@ const CheckoutPageContent: React.FC = () => {
         },
         seats: checkoutData.seats,
         generalAccess: checkoutData.generalAccess,
+        vipTickets: checkoutData.vipTickets || [],
         totalPrice: checkoutData.totalPrice,
         totalTickets: checkoutData.totalTickets,
         paymentMethod: paymentMethod
@@ -205,7 +215,7 @@ const CheckoutPageContent: React.FC = () => {
     }
   }
 
-  const isFormValid = customerInfo.firstName && customerInfo.lastName && customerInfo.email && customerInfo.phone
+  const isFormValid = customerInfo.firstName && customerInfo.lastName && customerInfo.email && customerInfo.phone && agreeToTerms
 
   if (loading) {
     return (
@@ -338,27 +348,30 @@ const CheckoutPageContent: React.FC = () => {
                         </div>
                       </div>
                     </label>
-                    <label className="flex items-center p-3 border border-gray-600 rounded-lg hover:border-blue-500 transition-colors cursor-pointer">
-                      <input
-                        type="radio"
-                        value="cash"
-                        checked={paymentMethod === 'cash'}
-                        onChange={(e) => setPaymentMethod(e.target.value)}
-                        className="mr-3"
-                      />
-                      <div className="flex items-center gap-3">
-                        <div className="w-8 h-8 bg-green-600 rounded flex items-center justify-center">
-                          <svg className="w-4 h-4 text-white" fill="currentColor" viewBox="0 0 20 20">
-                            <path d="M4 4a2 2 0 00-2 2v4a2 2 0 002 2V6h10a2 2 0 00-2-2H4zm2 6a2 2 0 012-2h8a2 2 0 012 2v4a2 2 0 01-2 2H8a2 2 0 01-2-2v-4zm6 4a2 2 0 100-4 2 2 0 000 4z" />
-                          </svg>
-                        </div>
-                        <div>
-                          <span className="text-white font-medium">Numerar la intrare</span>
-                          <div className="text-gray-400 text-sm">Plătești la eveniment</div>
-                        </div>
-                      </div>
-                    </label>
+
                   </div>
+                </div>
+
+                {/* Checkbox pentru acordul cu termenii și condițiile */}
+                <div className="mt-6">
+                  <label className="flex items-start gap-3 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={agreeToTerms}
+                      onChange={(e) => setAgreeToTerms(e.target.checked)}
+                      className="mt-1 w-4 h-4 text-blue-600 bg-gray-700 border-gray-600 rounded focus:ring-blue-500 focus:ring-2"
+                    />
+                    <span className="text-gray-300 text-sm">
+                      Sunt de acord cu{' '}
+                      <a href="/terms" target="_blank" className="text-blue-400 hover:text-blue-300 underline">
+                        termenii și condițiile
+                      </a>
+                      {' '}și{' '}
+                      <a href="/privacy" target="_blank" className="text-blue-400 hover:text-blue-300 underline">
+                        politica de confidențialitate
+                      </a>
+                    </span>
+                  </label>
                 </div>
 
                 <button

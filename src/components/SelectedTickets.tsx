@@ -7,6 +7,14 @@ interface GeneralAccessTicket {
   quantity: number;
 }
 
+interface VipTicket {
+  id: string;
+  name: string;
+  price: number;
+  quantity: number;
+  zone: string;
+}
+
 interface SeatWithPrice {
   id: string;
   zone: string;
@@ -21,10 +29,12 @@ interface SelectedTicketsProps {
   onRemoveSeat?: (seatId: string) => void
   generalAccessTickets?: GeneralAccessTicket[]
   onGeneralAccessRemove?: (ticketId: string) => void
+  vipTickets?: VipTicket[]
+  onVipRemove?: (ticketId: string) => void
   onCheckout?: () => void
 }
 
-const SelectedTickets: React.FC<SelectedTicketsProps> = ({ selectedSeats, zonePrices, onRemoveSeat, generalAccessTickets = [], onGeneralAccessRemove, onCheckout }) => {
+const SelectedTickets: React.FC<SelectedTicketsProps> = ({ selectedSeats, zonePrices, onRemoveSeat, generalAccessTickets = [], onGeneralAccessRemove, vipTickets = [], onVipRemove, onCheckout }) => {
   const [seatsWithPrices, setSeatsWithPrices] = useState<SeatWithPrice[]>([])
   const [loading, setLoading] = useState(false)
 
@@ -67,12 +77,13 @@ const SelectedTickets: React.FC<SelectedTicketsProps> = ({ selectedSeats, zonePr
         const fallbackSeats = Object.entries(selectedSeats).flatMap(([zoneId, seatIds]) => {
           const zonePrice = zonePrices[zoneId] || 0
           return seatIds.map(seatId => {
-            const [, row, number] = seatId.split('-')
+            // Не можем парсить ID, так как это теперь TEXT ID из базы
+            // Используем пустые значения для row/number в fallback режиме
             return {
               id: seatId,
               zone: zoneId,
-              row: row || '',
-              number: number || '',
+              row: '',
+              number: '',
               price: zonePrice
             }
           })
@@ -89,8 +100,9 @@ const SelectedTickets: React.FC<SelectedTicketsProps> = ({ selectedSeats, zonePr
   const allTickets = seatsWithPrices
 
   const totalPrice = allTickets.reduce((sum, ticket) => sum + ticket.price, 0) + 
-                     generalAccessTickets.reduce((sum, ticket) => sum + (ticket.price * ticket.quantity), 0)
-  const totalTickets = allTickets.length + generalAccessTickets.reduce((sum, ticket) => sum + ticket.quantity, 0)
+                     generalAccessTickets.reduce((sum, ticket) => sum + (ticket.price * ticket.quantity), 0) +
+                     vipTickets.reduce((sum, ticket) => sum + (ticket.price * ticket.quantity), 0)
+  const totalTickets = allTickets.length + generalAccessTickets.reduce((sum, ticket) => sum + ticket.quantity, 0) + vipTickets.reduce((sum, ticket) => sum + ticket.quantity, 0)
 
   return (
     /* Desktop version: always visible */
@@ -131,6 +143,27 @@ const SelectedTickets: React.FC<SelectedTicketsProps> = ({ selectedSeats, zonePr
                   <button
                     className="ml-2 lg:ml-3 w-6 h-6 lg:w-8 lg:h-8 flex items-center justify-center rounded-full bg-red-500/20 text-red-400 hover:bg-red-500/30 hover:text-red-300 transition-all duration-200 cursor-pointer border border-red-500/30 flex-shrink-0"
                     onClick={() => onGeneralAccessRemove(ticket.id)}
+                    aria-label="Șterge biletul"
+                  >
+                    <svg width="12" height="12" className="lg:w-4 lg:h-4" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg">
+                      <path d="M12 4L4 12M4 4L12 12" stroke="currentColor" strokeWidth="2" strokeLinecap="round"/>
+                    </svg>
+                  </button>
+                )}
+              </div>
+            ))}
+            
+            {vipTickets.map((ticket) => (
+              <div key={ticket.id} className="flex items-center bg-purple-700/60 rounded-lg lg:rounded-xl px-3 lg:px-4 py-2 lg:py-3 relative group shadow-lg border border-purple-600/50">
+                <div className="flex-1 min-w-0">
+                  <div className="font-bold text-xs lg:text-sm uppercase tracking-wide text-purple-300 mb-1">{ticket.name}</div>
+                  <div className="text-xs lg:text-sm text-gray-200 mb-1 truncate">Întreaga zonă</div>
+                  <div className="text-xs lg:text-sm font-semibold text-green-400">{ticket.price * ticket.quantity} Lei</div>
+                </div>
+                {onVipRemove && (
+                  <button
+                    className="ml-2 lg:ml-3 w-6 h-6 lg:w-8 lg:h-8 flex items-center justify-center rounded-full bg-red-500/20 text-red-400 hover:bg-red-500/30 hover:text-red-300 transition-all duration-200 cursor-pointer border border-red-500/30 flex-shrink-0"
+                    onClick={() => onVipRemove(ticket.id)}
                     aria-label="Șterge biletul"
                   >
                     <svg width="12" height="12" className="lg:w-4 lg:h-4" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg">

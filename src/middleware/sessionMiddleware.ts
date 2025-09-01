@@ -278,7 +278,7 @@ setInterval(cleanupRateLimitStore, 5 * 60 * 1000)
 /**
  * Валидация входящих данных
  */
-export function validateRequestData<T>(
+export function validateRequestData(
   data: any,
   schema: Record<string, (value: any) => boolean>
 ): { isValid: boolean; errors: string[] } {

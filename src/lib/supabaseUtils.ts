@@ -23,8 +23,8 @@ interface ZoneTemplate {
 
 // Кэш для данных
 let zonesCache: ZoneTemplate[] | null = null
-let seatsCache: Map<string, SeatData[]> = new Map()
-let pricingCache: Map<string, Record<string, number>> = new Map()
+const seatsCache: Map<string, SeatData[]> = new Map()
+const pricingCache: Map<string, Record<string, number>> = new Map()
 
 // Получение всех зон
 export async function getZones(): Promise<ZoneTemplate[]> {
@@ -157,7 +157,7 @@ export function clearCache() {
 export async function preloadEventData(eventId: string) {
   try {
     // Загружаем зоны и цены параллельно
-    const [zones, pricing] = await Promise.all([
+    const [zones] = await Promise.all([
       getZones(),
       getEventPricing(eventId)
     ])
