@@ -4,9 +4,7 @@
   "installCommand": "npm install",
   "framework": "nextjs",
   "regions": ["fra1"],
-  "env": {
-    "MAIN_SERVER_URL": "@main_server_url"
-  },
+
   "headers": [
     {
       "source": "/(.*)",
@@ -26,4 +24,4 @@
       ]
     }
   ]
-} 
+}
