@@ -1,0 +1,15 @@
+User-agent: *
+Allow: /
+
+Sitemap: https://voievod.md/sitemap.xml
+
+# Disallow admin and API routes
+Disallow: /admin/
+Disallow: /api/
+Disallow: /verify/
+
+# Allow ticket and checkout pages
+Allow: /tickets
+Allow: /checkout
+Allow: /privacy
+Allow: /terms

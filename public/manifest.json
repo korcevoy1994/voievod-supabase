@@ -1,0 +1,42 @@
+{
+  "name": "VOIEVOD - Rock operă coregrafică",
+  "short_name": "VOIEVOD",
+  "description": "Cumpără bilete pentru spectacolul VOIEVOD - Rock operă coregrafică",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#000000",
+  "theme_color": "#dc2626",
+  "orientation": "portrait",
+  "scope": "/",
+  "lang": "ro",
+  "dir": "ltr",
+  "categories": ["entertainment", "music", "tickets"],
+  "icons": [
+    {
+      "src": "/favicon.ico",
+      "sizes": "16x16 32x32",
+      "type": "image/x-icon"
+    },
+    {
+      "src": "/logo.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "/logo.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ],
+  "screenshots": [
+    {
+      "src": "/bg-desc-min.jpg",
+      "sizes": "1280x720",
+      "type": "image/jpeg",
+      "platform": "wide",
+      "label": "VOIEVOD - Pagina principală"
+    }
+  ]
+}
