@@ -106,7 +106,7 @@ export const optimizeComponent = <P extends Record<string, any>>(
       OptimizedComponent.displayName = `Optimized(${displayName})`
     }
     
-    logger.dev(`Component ${displayName || Component.name} optimized with memoization`)
+
   }
   
   return OptimizedComponent
@@ -119,7 +119,7 @@ export const lazyLoadComponent = <P extends Record<string, any>>(
 ): LazyExoticComponent<ComponentType<P>> => {
   const LazyComponent = lazy(importFn)
   
-  logger.dev(`Component ${displayName} configured for lazy loading`)
+
   
   return LazyComponent
 }
@@ -165,7 +165,7 @@ export const useComponentPreloader = () => {
   ): Promise<void> => {
     try {
       await importFn()
-      logger.dev('Component preloaded successfully')
+
     } catch (error) {
       logger.error('Failed to preload component:', error)
     }

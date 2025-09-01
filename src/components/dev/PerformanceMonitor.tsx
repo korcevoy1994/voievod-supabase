@@ -308,7 +308,7 @@ export function PerformanceMonitor({
                   resetMetrics()
                   globalMetrics.componentRenders.clear()
                   globalMetrics.totalRenders = 0
-                  logger.info('Performance metrics cleared')
+
                 }}
                 className="text-xs bg-red-600 hover:bg-red-700 px-2 py-1 rounded transition-colors"
               >
@@ -322,7 +322,7 @@ export function PerformanceMonitor({
                     metrics,
                     components: Array.from(globalMetrics.componentRenders.entries())
                   }
-                  logger.info('Performance Report:', report)
+
                   console.table(Array.from(globalMetrics.componentRenders.entries()))
                 }}
                 className="text-xs bg-blue-600 hover:bg-blue-700 px-2 py-1 rounded transition-colors"
@@ -397,11 +397,11 @@ export function usePerformanceMeasure() {
     if (result instanceof Promise) {
       return result.finally(() => {
         const duration = performance.now() - start
-        logger.dev(`${name} took ${duration.toFixed(2)}ms`)
+
       })
     } else {
       const duration = performance.now() - start
-      logger.dev(`${name} took ${duration.toFixed(2)}ms`)
+
       return result
     }
   }, [])
@@ -427,7 +427,7 @@ export function usePropsChangeTracker<T extends Record<string, any>>(
       })
       
       if (changedProps.length > 0) {
-        logger.dev(`${componentName} re-rendered due to props change:`, changedProps)
+
       }
     }
     

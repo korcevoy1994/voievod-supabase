@@ -45,10 +45,10 @@ interface CreateOrderRequest {
 
 export const POST = withPublicAccess(async (request: NextRequest) => {
   try {
-    logger.dev('POST /api/orders - начало обработки запроса')
+
     const supabase = createSupabaseServerClient()
     const body: CreateOrderRequest = await request.json()
-    logger.dev('Получены данные запроса', body)
+
     
     const {
       userId,
@@ -77,7 +77,7 @@ export const POST = withPublicAccess(async (request: NextRequest) => {
         { status: 400 }
       )
     }
-    logger.dev('Валидация данных прошла успешно')
+
 
     // Проверка userId (базовая валидация)
     if (!userId || typeof userId !== 'string') {
@@ -163,7 +163,7 @@ export const POST = withPublicAccess(async (request: NextRequest) => {
 
 
     // Получаем ID события (предполагаем, что у нас одно активное событие)
-    logger.dev('Поиск активного события...')
+
     const { data: eventData, error: eventError } = await supabase
       .from('events')
       .select('id')
@@ -173,15 +173,15 @@ export const POST = withPublicAccess(async (request: NextRequest) => {
 
     if (eventError || !eventData) {
       logger.error('Ошибка получения события', eventError)
-      logger.dev('Проверим все события в базе...')
+
       const { data: allEvents } = await supabase.from('events').select('id, title, status')
-      logger.dev('Все события', allEvents)
+
       return NextResponse.json(
         { error: 'Событие не найдено' },
         { status: 500 }
       )
     }
-    logger.dev('Найдено активное событие', eventData.id)
+
 
     // Создаем заказ и получаем сгенерированный UUID
     const { data: orderData, error: orderError } = await supabase
@@ -238,7 +238,7 @@ export const POST = withPublicAccess(async (request: NextRequest) => {
     if (updateError) {
       logger.error('Ошибка обновления QR кода и PDF URL', updateError)
     } else {
-      logger.dev('QR код и PDF URL успешно добавлены для заказа', orderId)
+
     }
 
     // Сохраняем места в заказе
@@ -355,7 +355,6 @@ export const POST = withPublicAccess(async (request: NextRequest) => {
     }
 
     // Создаем билеты для заказа
-    logger.dev('Создание билетов для заказа', orderId)
     
     try {
       const ticketsToCreate = []
@@ -506,7 +505,7 @@ export const POST = withPublicAccess(async (request: NextRequest) => {
         if (ticketsError) {
           logger.error('Ошибка создания билетов', ticketsError)
         } else {
-          logger.dev('Билеты успешно созданы', ticketsToCreate.length)
+
         }
       }
     } catch (ticketError) {

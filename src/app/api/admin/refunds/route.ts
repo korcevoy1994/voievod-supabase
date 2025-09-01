@@ -190,13 +190,7 @@ export async function POST(request: NextRequest) {
        }
      }
     
-    logger.info('Refund processed successfully', {
-      orderId: payment.order_id,
-      paymentId: payment.id,
-      refundId: refund.id,
-      amount: finalRefundAmount,
-      maibSuccess: maibRefundSuccess
-    });
+
     
     return NextResponse.json({
       success: true,

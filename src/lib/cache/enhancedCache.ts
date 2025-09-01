@@ -95,19 +95,16 @@ export class EnhancedCache {
     // Проверяем кэш
     const cached = this.get<T>(key)
     if (cached) {
-      logger.dev(`Cache hit for key: ${key}`)
       return cached
     }
 
     // Проверяем pending запросы
     const pending = this.pendingRequests.get(key)
     if (pending) {
-      logger.dev(`Pending request for key: ${key}`)
       return pending
     }
 
     // Создаем новый запрос
-    logger.dev(`Cache miss, fetching data for key: ${key}`)
     const request = fetcher().then(data => {
       this.set(key, data, ttl)
       this.pendingRequests.delete(key)

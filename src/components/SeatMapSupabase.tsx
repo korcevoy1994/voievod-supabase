@@ -49,6 +49,7 @@ interface SeatMapSupabaseProps {
   selectedSeats: string[]
   onSeatClick: (seatId: string) => void
   eventId?: string
+  price?: number
 }
 
 const SeatMapSupabase = forwardRef<ReactZoomPanPinchRef, SeatMapSupabaseProps>(
@@ -78,16 +79,11 @@ const SeatMapSupabase = forwardRef<ReactZoomPanPinchRef, SeatMapSupabaseProps>(
     const seatsMap = useMemo(() => {
       const map = new Map<string, SeatData>()
       const seatsArray = seats?.seats || seats
-      console.log('🔍 SeatMapSupabase - зона:', zoneId, 'eventId:', eventId)
-      console.log('🔍 SeatMapSupabase - полученные места:', seatsArray?.slice(0, 3))
       if (Array.isArray(seatsArray)) {
         seatsArray.forEach((seat: SeatData) => {
           // Используем row и number напрямую из данных API
           const svgSeatId = `${seat.row} - ${seat.number.padStart(2, '0')}`
           map.set(svgSeatId, seat)
-          if (seat.row === 'A' && ['01', '02', '03'].includes(seat.number)) {
-            console.log(`🎨 Место ${svgSeatId}: fill=${seat.fill}, status=${seat.status}`)
-          }
         })
       }
       return map
@@ -179,7 +175,6 @@ const SeatMapSupabase = forwardRef<ReactZoomPanPinchRef, SeatMapSupabaseProps>(
                     seatElement.setAttribute('stroke', 'none')
                     seatElement.style.filter = 'none'
                     seatElement.style.cursor = 'pointer'
-                    console.log(`🎨 Применяю цвет для ${svgSeatId}: API=${seat.fill} -> итог=${finalFill}`)
                   }
                   break
               }

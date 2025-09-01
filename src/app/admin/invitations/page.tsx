@@ -1,14 +1,16 @@
 'use client'
 
-import React, { useState, useRef } from 'react'
+import React, { useState, useRef, useEffect } from 'react'
 import { motion } from 'framer-motion'
-import { ArrowLeft, Download, Users, MapPin, Mail, Phone, User, Save, Loader2 } from 'lucide-react'
+import { ArrowLeft, Download, Users, MapPin, Mail, Phone, User, Save, Loader2, RefreshCw, LogOut } from 'lucide-react'
 import { ReactZoomPanPinchRef } from 'react-zoom-pan-pinch'
 import ArenaSVG from '@/components/ArenaSVG'
 import SeatMapSupabase from '@/components/SeatMapSupabase'
 import { useRouter } from 'next/navigation'
 import { useZones } from '@/lib/hooks/useSupabaseData'
-import { useOptimizedZoneColors } from '@/lib/hooks/useOptimizedData';
+import { useOptimizedZoneColors } from '@/lib/hooks/useOptimizedData'
+import { getSupabaseBrowserSSRClient } from '@/lib/supabase-ssr'
+import AdminLogin from '@/components/AdminLogin'
 
 interface InvitationFormData {
   firstName: string
@@ -44,6 +46,28 @@ export default function InvitationsPage() {
   const [isCreating, setIsCreating] = useState(false)
   const [createdOrderId, setCreatedOrderId] = useState<string | null>(null)
   const [step, setStep] = useState<'seats' | 'form' | 'success'>('seats')
+  const [isAuthenticated, setIsAuthenticated] = useState(false)
+  const [authLoading, setAuthLoading] = useState(true)
+
+  // Проверяем аутентификацию при загрузке
+  useEffect(() => {
+    const checkAuth = async () => {
+      const supabase = getSupabaseBrowserSSRClient()
+      const { data: { session } } = await supabase.auth.getSession()
+      setIsAuthenticated(!!session)
+      setAuthLoading(false)
+    }
+
+    checkAuth()
+
+    const supabase = getSupabaseBrowserSSRClient()
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event: any, session: any) => {
+      setIsAuthenticated(!!session)
+      setAuthLoading(false)
+    })
+
+    return () => subscription.unsubscribe()
+  }, [])
 
   // Устанавливаем первую зону по умолчанию когда зоны загружены
   React.useEffect(() => {
@@ -51,6 +75,18 @@ export default function InvitationsPage() {
       setSelectedZone(zones[0].zone_id)
     }
   }, [zones, selectedZone])
+
+  const handleLogout = async () => {
+    const supabase = getSupabaseBrowserSSRClient()
+    await supabase.auth.signOut()
+    setIsAuthenticated(false)
+  }
+
+  const handleLoginSuccess = () => {
+    setIsAuthenticated(true)
+    // Принудительно обновляем страницу для синхронизации с middleware
+    window.location.reload()
+  }
 
 
 
@@ -189,6 +225,23 @@ export default function InvitationsPage() {
     setStep('seats')
   }
 
+  // Показываем загрузку аутентификации
+  if (authLoading) {
+    return (
+      <div className="min-h-screen bg-gray-900 text-white flex items-center justify-center">
+        <div className="text-center">
+          <RefreshCw className="h-8 w-8 animate-spin mx-auto mb-4 text-blue-400" />
+          <p className="text-gray-300">Проверка аутентификации...</p>
+        </div>
+      </div>
+    )
+  }
+
+  // Показываем форму входа для неаутентифицированных пользователей
+  if (!isAuthenticated) {
+    return <AdminLogin onLoginSuccess={handleLoginSuccess} />
+  }
+
   return (
     <div className="min-h-screen bg-gray-900 text-white">
       {/* Header */}
@@ -204,6 +257,16 @@ export default function InvitationsPage() {
             </button>
             <div className="h-6 w-px bg-gray-600" />
             <h1 className="text-xl font-semibold">Создание пригласительных</h1>
+          </div>
+          
+          <div className="flex items-center space-x-3">
+            <button
+              onClick={handleLogout}
+              className="flex items-center space-x-2 bg-red-600 hover:bg-red-700 px-4 py-2 rounded-lg transition-colors"
+            >
+              <LogOut className="w-4 h-4" />
+              <span>Выйти</span>
+            </button>
           </div>
           
           {step === 'success' && (

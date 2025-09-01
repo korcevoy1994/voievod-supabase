@@ -62,16 +62,16 @@ export default function VoevodaSupabaseEventPage() {
 
   // Загружаем выбранные места и general access билеты из localStorage при монтировании
   useEffect(() => {
-    logger.dev('Загрузка данных при монтировании компонента')
+
     
     // Сначала проверяем, есть ли данные checkout (возврат с checkout)
     const checkoutData = localStorage.getItem('checkout_data')
-    logger.dev('checkout_data найден:', !!checkoutData)
+
     
     if (checkoutData) {
       try {
         const data = JSON.parse(checkoutData)
-        logger.dev('Восстанавливаем данные из checkout_data', data)
+
         
         // Восстанавливаем выбранные места из checkout данных
          const restoredSeats: Record<string, string[]> = {}
@@ -83,12 +83,12 @@ export default function VoevodaSupabaseEventPage() {
            restoredSeats[seat.zone].push(seat.id)
          })
          setSelectedSeats(restoredSeats)
-         logger.dev('Восстановлены места', restoredSeats)
+
          
          // Восстанавливаем general access билеты
          if (data.generalAccess) {
            setGeneralAccessTickets(data.generalAccess)
-           logger.dev('Восстановлены general access билеты', data.generalAccess)
+
          }
         
         return // Выходим, чтобы не загружать из других источников
@@ -99,12 +99,12 @@ export default function VoevodaSupabaseEventPage() {
     
     // Если нет checkout данных, загружаем из обычного localStorage
     const savedSeats = localStorage.getItem('voevoda_supabase_selectedSeats')
-    logger.dev('voevoda_supabase_selectedSeats найден:', !!savedSeats)
+
     
     if (savedSeats) {
       try {
         const seats = JSON.parse(savedSeats)
-        logger.dev('Загружаем сохраненные места', seats)
+
         setSelectedSeats(seats)
       } catch (error) {
         logger.error('Ошибка загрузки сохраненных мест', error)
@@ -112,12 +112,12 @@ export default function VoevodaSupabaseEventPage() {
     }
     
     const savedGeneralAccess = localStorage.getItem('voevoda_supabase_generalAccess')
-    logger.dev('voevoda_supabase_generalAccess найден:', !!savedGeneralAccess)
+
     
     if (savedGeneralAccess) {
       try {
         const tickets = JSON.parse(savedGeneralAccess)
-        logger.dev('Загружаем сохраненные general access билеты', tickets)
+
         setGeneralAccessTickets(tickets)
       } catch (error) {
         logger.error('Ошибка загрузки general access билетов', error)
@@ -268,12 +268,12 @@ export default function VoevodaSupabaseEventPage() {
       // Убираем место из выбранных
       const newSeats = currentSeats.filter(id => id !== seatId)
       setSelectedSeats(prev => ({ ...prev, [activeZone]: newSeats }))
-      logger.dev('Место убрано из выбранных', seatId)
+
     } else {
       // Добавляем место в выбранные
       const newSeats = [...currentSeats, seatId]
       setSelectedSeats(prev => ({ ...prev, [activeZone]: newSeats }))
-      logger.dev('Место добавлено в выбранные', seatId)
+
     }
   }, [activeZone, selectedSeats])
 
@@ -310,7 +310,7 @@ export default function VoevodaSupabaseEventPage() {
     
     // Убираем место из выбранных
     setSelectedSeats(prev => ({ ...prev, [foundZoneId]: newSeats }))
-    logger.dev('Место удалено', seatId)
+
   }, [selectedSeats])
 
   // Мемоизированные значения для текущей зоны
@@ -326,7 +326,7 @@ export default function VoevodaSupabaseEventPage() {
 
   // Обработчик перехода к checkout
   const handleCheckout = useCallback(async () => {
-    logger.dev('Начинаем процесс checkout')
+
     
     // Собираем все выбранные места
     const allSelectedSeats: string[] = []
@@ -342,7 +342,7 @@ export default function VoevodaSupabaseEventPage() {
     try {
       // Очищаем старые checkout_data перед созданием новых
       localStorage.removeItem('checkout_data')
-      logger.dev('Очищены старые checkout_data')
+
       
       // Собираем данные о выбранных местах с ценами
       const checkoutSeats: Array<{
@@ -411,11 +411,11 @@ export default function VoevodaSupabaseEventPage() {
         totalTickets
       }
       
-      logger.dev('Сохраняем checkout_data', checkoutData)
+
       localStorage.setItem('checkout_data', JSON.stringify(checkoutData))
       
       // Перенаправляем на страницу checkout
-      logger.dev('Переходим на страницу checkout')
+
       router.push('/checkout')
     } catch (error) {
       logger.error('Ошибка при подготовке к чекауту', error)

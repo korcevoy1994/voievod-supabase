@@ -9,10 +9,7 @@ export async function POST(request: NextRequest) {
     const supabase = createSupabaseServerClient();
     const body = await request.json();
     
-    logger.info('MAIB callback received', {
-      headers: Object.fromEntries(request.headers.entries()),
-      body: JSON.stringify(body, null, 2)
-    });
+
     
     // Согласно документации MAIB, подпись приходит в теле запроса
     const signature = body.signature || request.headers.get('x-maib-signature') || '';
@@ -184,12 +181,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Логируем успешную обработку callback
-    logger.info('MAIB callback processed successfully', {
-      transactionId,
-      status: newStatus,
-      orderId,
-      amount
-    });
+
 
     return NextResponse.json({
       success: true,

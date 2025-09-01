@@ -2,8 +2,10 @@
 
 import React, { useState, useEffect } from 'react'
 import { motion } from 'framer-motion'
-import { Search, Filter, Download, Eye, Edit, RefreshCw, Calendar, DollarSign, Users, TrendingUp, RotateCcw, Plus } from 'lucide-react'
+import { Search, Filter, Download, Eye, Edit, RefreshCw, Calendar, DollarSign, Users, TrendingUp, RotateCcw, Plus, LogOut } from 'lucide-react'
 import { useRouter } from 'next/navigation'
+import { getSupabaseBrowserSSRClient } from '@/lib/supabase-ssr'
+import AdminLogin from '@/components/AdminLogin'
 
 interface OrderPayment {
   id: string
@@ -73,6 +75,8 @@ const paymentStatusColors = {
 
 export default function AdminPage() {
   const router = useRouter()
+  const [isAuthenticated, setIsAuthenticated] = useState(false)
+  const [authLoading, setAuthLoading] = useState(true)
   const [orders, setOrders] = useState<Order[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -270,9 +274,39 @@ export default function AdminPage() {
     return order.order_payments[0] // API уже сортирует по created_at desc
   }
 
+  // Проверка аутентификации при загрузке
   useEffect(() => {
-    fetchOrders()
-  }, [pagination.page, filters])
+    const checkAuth = async () => {
+      const supabase = getSupabaseBrowserSSRClient()
+      const { data: { session } } = await supabase.auth.getSession()
+      
+      if (session?.user) {
+        setIsAuthenticated(true)
+      }
+      setAuthLoading(false)
+    }
+
+    checkAuth()
+
+    // Подписка на изменения аутентификации
+    const supabase = getSupabaseBrowserSSRClient()
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+      if (session?.user) {
+        setIsAuthenticated(true)
+      } else {
+        setIsAuthenticated(false)
+      }
+      setAuthLoading(false)
+    })
+
+    return () => subscription.unsubscribe()
+  }, [])
+
+  useEffect(() => {
+    if (isAuthenticated) {
+      fetchOrders()
+    }
+  }, [pagination.page, filters, isAuthenticated])
 
   const handleFilterChange = (key: keyof Filters, value: string) => {
     setFilters(prev => ({ ...prev, [key]: value }))
@@ -307,6 +341,35 @@ export default function AdminPage() {
     link.click()
   }
 
+  const handleLogout = async () => {
+    const supabase = getSupabaseBrowserSSRClient()
+    await supabase.auth.signOut()
+    setIsAuthenticated(false)
+  }
+
+  const handleLoginSuccess = () => {
+    setIsAuthenticated(true)
+    // Принудительно обновляем страницу для синхронизации с middleware
+    window.location.reload()
+  }
+
+  // Показываем загрузку аутентификации
+  if (authLoading) {
+    return (
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+        <div className="text-center">
+          <RefreshCw className="h-8 w-8 animate-spin mx-auto mb-4 text-blue-600" />
+          <p className="text-gray-600">Проверка аутентификации...</p>
+        </div>
+      </div>
+    )
+  }
+
+  // Показываем форму входа для неаутентифицированных пользователей
+  if (!isAuthenticated) {
+    return <AdminLogin onLoginSuccess={handleLoginSuccess} />
+  }
+
   if (loading && orders.length === 0) {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
@@ -330,7 +393,10 @@ export default function AdminPage() {
             </div>
             <div className="flex space-x-3">
               <button
-                onClick={() => router.push('/admin/invitations')}
+                onClick={() => {
+                  console.log('Кнопка Пригласительные нажата')
+                  router.push('/admin/invitations')
+                }}
                 className="inline-flex items-center px-4 py-2 bg-purple-600 border border-transparent rounded-md shadow-sm text-sm font-medium text-white hover:bg-purple-700"
               >
                 <Plus className="h-4 w-4 mr-2" />
@@ -356,6 +422,13 @@ export default function AdminPage() {
               >
                 <RefreshCw className={`h-4 w-4 mr-2 ${loading ? 'animate-spin' : ''}`} />
                 Обновить
+              </button>
+              <button
+                onClick={handleLogout}
+                className="inline-flex items-center px-4 py-2 bg-red-600 border border-transparent rounded-md shadow-sm text-sm font-medium text-white hover:bg-red-700"
+              >
+                <LogOut className="h-4 w-4 mr-2" />
+                Выйти
               </button>
             </div>
           </div>
