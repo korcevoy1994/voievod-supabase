@@ -51,7 +51,7 @@ INSERT INTO zone_colors (zone, color, name) VALUES
 ('213', '#179240', 'Зеленый');
 
 -- Добавляем зоновые цены
-INSERT INTO zone_pricing (event_id, zone, base_price, row_multipliers) VALUES
+INSERT INTO zone_pricing (event_id, zone, price, row_multipliers) VALUES
 ('550e8400-e29b-41d4-a716-446655440000', '201', 650.00, '{"1": 1.0, "2": 1.0, "3": 1.0}'),
 ('550e8400-e29b-41d4-a716-446655440000', '202', 850.00, '{"1": 1.0, "2": 1.0, "3": 1.0}'),
 ('550e8400-e29b-41d4-a716-446655440000', '203', 950.00, '{"1": 1.0, "2": 1.0, "3": 1.0}'),

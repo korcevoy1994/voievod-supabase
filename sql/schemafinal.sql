@@ -186,7 +186,7 @@ CREATE TABLE public.zone_colors (
 CREATE TABLE public.zone_pricing (
   id uuid NOT NULL DEFAULT uuid_generate_v4(),
   zone character varying NOT NULL UNIQUE,
-  base_price numeric NOT NULL,
+  price numeric NOT NULL,
   row_multipliers jsonb DEFAULT '{}'::jsonb,
   created_at timestamp with time zone DEFAULT now(),
   updated_at timestamp with time zone DEFAULT now(),

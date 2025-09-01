@@ -427,7 +427,7 @@ export default function VoevodaSupabaseEventPage() {
   if (pricingLoading) {
     return (
       <div className="bg-gradient-to-br from-gray-900 via-gray-800 to-black min-h-screen w-full flex items-center justify-center">
-        <div className="text-white text-xl">Загрузка цен...</div>
+        <div className="text-white text-xl">Încărcare prețuri...</div>
       </div>
     )
   }
@@ -551,7 +551,6 @@ export default function VoevodaSupabaseEventPage() {
                         selectedSeats={currentZoneSeats}
                         onSeatClick={handleSeatClick}
                         eventId="550e8400-e29b-41d4-a716-446655440000"
-                        price={price}
                       />
                     )}
                   </div>

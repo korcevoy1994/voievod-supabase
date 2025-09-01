@@ -55,7 +55,7 @@ INSERT INTO users (
 );
 
 -- Добавляем зоны и цены для тестирования (если их нет)
-INSERT INTO zone_pricing (zone, base_price, event_id)
+INSERT INTO zone_pricing (zone, price, event_id)
 SELECT 
   'VIP',
   500.00,
@@ -67,7 +67,7 @@ AND NOT EXISTS (
   WHERE zp.zone = 'VIP' AND zp.event_id = e.id
 );
 
-INSERT INTO zone_pricing (zone, base_price, event_id)
+INSERT INTO zone_pricing (zone, price, event_id)
 SELECT 
   'Standard',
   250.00,

@@ -1,7 +1,7 @@
--- Исправление: Автоматическое обновление цен мест при изменении zone_prices
--- Этот файл решает проблему, когда изменение цен в zone_prices не отражается в таблице seats
+-- Исправление: Автоматическое обновление цен мест при изменении zone_pricing
+-- Этот файл решает проблему, когда изменение цен в zone_pricing не отражается в таблице seats
 
--- Функция для автоматического обновления цен мест при изменении zone_prices
+-- Функция для автоматического обновления цен мест при изменении zone_pricing
 CREATE OR REPLACE FUNCTION update_seats_pricing()
 RETURNS TRIGGER AS $$
 BEGIN
@@ -18,17 +18,17 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql;
 
--- Триггер для автоматического обновления цен мест при изменении zone_prices
-DROP TRIGGER IF EXISTS trigger_update_seats_pricing ON zone_prices;
+-- Триггер для автоматического обновления цен мест при изменении zone_pricing
+DROP TRIGGER IF EXISTS trigger_update_seats_pricing ON zone_pricing;
 CREATE TRIGGER trigger_update_seats_pricing
-  AFTER UPDATE OF base_price, row_multipliers ON zone_prices
+  AFTER UPDATE OF price, row_multipliers ON zone_pricing
   FOR EACH ROW
   EXECUTE FUNCTION update_seats_pricing();
 
--- Триггер для установки цен при вставке новой zone_price
-DROP TRIGGER IF EXISTS trigger_insert_seats_pricing ON zone_prices;
+-- Триггер для установки цен при вставке новой zone_pricing
+DROP TRIGGER IF EXISTS trigger_insert_seats_pricing ON zone_pricing;
 CREATE TRIGGER trigger_insert_seats_pricing
-  AFTER INSERT ON zone_prices
+  AFTER INSERT ON zone_pricing
   FOR EACH ROW
   EXECUTE FUNCTION update_seats_pricing();
 
@@ -38,7 +38,7 @@ RETURNS TRIGGER AS $$
 BEGIN
   -- Если цена изменилась и это не автоматическое обновление
   IF OLD.price IS DISTINCT FROM NEW.price THEN
-    -- Проверяем, не является ли новая цена расчетной из zone_prices
+    -- Проверяем, не является ли новая цена расчетной из zone_pricing
     DECLARE
       calculated_price DECIMAL(10,2);
     BEGIN
@@ -68,8 +68,8 @@ CREATE TRIGGER trigger_set_custom_price
 DO $$
 BEGIN
   RAISE NOTICE 'Триггеры для управления ценами мест успешно созданы!';
-  RAISE NOTICE '1. При изменении цен в zone_prices автоматически обновятся цены в seats (только для мест без custom_price)';
+  RAISE NOTICE '1. При изменении цен в zone_pricing автоматически обновятся цены в seats (только для мест без custom_price)';
   RAISE NOTICE '2. При ручном изменении цены места автоматически устанавливается custom_price = true';
-  RAISE NOTICE '3. Места с custom_price = true не будут перезаписываться при изменении zone_prices';
+  RAISE NOTICE '3. Места с custom_price = true не будут перезаписываться при изменении zone_pricing';
 END;
 $$;

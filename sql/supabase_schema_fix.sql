@@ -8,18 +8,18 @@ DROP FUNCTION IF EXISTS calculate_seat_price(uuid,character varying,character va
 CREATE OR REPLACE FUNCTION calculate_seat_price(p_event_id UUID, p_zone VARCHAR, p_row VARCHAR)
 RETURNS DECIMAL(10,2) AS $$
 DECLARE
-  base_price DECIMAL(10,2);
+  zone_price DECIMAL(10,2);
   row_multiplier DECIMAL(10,2) := 1.0;
   multipliers JSONB;
 BEGIN
-  -- Получаем базовую цену и мультипликаторы для зоны
-  SELECT zp.base_price, zp.row_multipliers
-  INTO base_price, multipliers
+  -- Получаем цену и мультипликаторы для зоны
+  SELECT zp.price, zp.row_multipliers
+  INTO zone_price, multipliers
   FROM zone_pricing zp
   WHERE zp.event_id = p_event_id AND zp.zone = p_zone;
   
   -- Если зона не найдена, возвращаем NULL
-  IF base_price IS NULL THEN
+  IF zone_price IS NULL THEN
     RETURN NULL;
   END IF;
   
@@ -28,7 +28,7 @@ BEGIN
     row_multiplier := (multipliers ->> p_row)::DECIMAL(10,2);
   END IF;
   
-  RETURN base_price * row_multiplier;
+  RETURN zone_price * row_multiplier;
 END;
 $$ LANGUAGE plpgsql;
 

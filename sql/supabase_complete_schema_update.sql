@@ -37,23 +37,23 @@ CREATE TABLE IF NOT EXISTS zone_colors (
 CREATE INDEX IF NOT EXISTS idx_zone_colors_zone ON zone_colors(zone);
 
 -- Таблица для хранения цен зон (заменяет старую zone_pricing)
-CREATE TABLE IF NOT EXISTS zone_prices (
+CREATE TABLE IF NOT EXISTS zone_pricing (
   id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
   event_id UUID NOT NULL REFERENCES events(id) ON DELETE CASCADE,
   zone VARCHAR(10) NOT NULL,
-  base_price DECIMAL(10,2) NOT NULL DEFAULT 0,
+  price DECIMAL(10,2) NOT NULL DEFAULT 0,
   row_multipliers JSONB DEFAULT '{}',
   created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
   updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
 
 -- Создание уникального индекса для предотвращения дублирования
-CREATE UNIQUE INDEX IF NOT EXISTS idx_zone_prices_event_zone 
-ON zone_prices(event_id, zone);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_zone_pricing_event_zone 
+ON zone_pricing(event_id, zone);
 
 -- Создание индекса для быстрого поиска по событию
-CREATE INDEX IF NOT EXISTS idx_zone_prices_event_id 
-ON zone_prices(event_id);
+CREATE INDEX IF NOT EXISTS idx_zone_pricing_event_id 
+ON zone_pricing(event_id);
 
 -- Создаем индекс для сортировки зон
 CREATE INDEX IF NOT EXISTS idx_zone_colors_sort_order ON zone_colors(sort_order, zone);
@@ -78,10 +78,10 @@ CREATE TRIGGER trigger_update_zone_colors_updated_at
   FOR EACH ROW
   EXECUTE FUNCTION update_updated_at_column();
 
--- Триггер для автоматического обновления updated_at в zone_prices
-DROP TRIGGER IF EXISTS trigger_update_zone_prices_updated_at ON zone_prices;
-CREATE TRIGGER trigger_update_zone_prices_updated_at
-  BEFORE UPDATE ON zone_prices
+-- Триггер для автоматического обновления updated_at в zone_pricing
+DROP TRIGGER IF EXISTS trigger_update_zone_pricing_updated_at ON zone_pricing;
+CREATE TRIGGER trigger_update_zone_pricing_updated_at
+BEFORE UPDATE ON zone_pricing
   FOR EACH ROW
   EXECUTE FUNCTION update_updated_at_column();
 
@@ -93,18 +93,18 @@ CREATE OR REPLACE FUNCTION calculate_seat_price(
 )
 RETURNS DECIMAL(10,2) AS $$
 DECLARE
-  v_base_price DECIMAL(10,2);
+  v_zone_price DECIMAL(10,2);
   v_row_multipliers JSONB;
   v_multiplier DECIMAL(10,2) := 1.0;
 BEGIN
-  -- Получаем базовую цену и множители рядов для зоны
-  SELECT base_price, row_multipliers
-  INTO v_base_price, v_row_multipliers
-  FROM zone_prices
+  -- Получаем цену и множители рядов для зоны
+  SELECT price, row_multipliers
+  INTO v_zone_price, v_row_multipliers
+  FROM zone_pricing
   WHERE event_id = p_event_id AND zone = p_zone;
   
   -- Если цена не найдена, возвращаем 0
-  IF v_base_price IS NULL THEN
+  IF v_zone_price IS NULL THEN
     RETURN 0;
   END IF;
   
@@ -113,7 +113,7 @@ BEGIN
     v_multiplier := COALESCE((v_row_multipliers->>p_row)::DECIMAL(10,2), 1.0);
   END IF;
   
-  RETURN v_base_price * v_multiplier;
+  RETURN v_zone_price * v_multiplier;
 END;
 $$ LANGUAGE plpgsql;
 
@@ -121,13 +121,13 @@ $$ LANGUAGE plpgsql;
 CREATE OR REPLACE FUNCTION get_event_pricing(p_event_id UUID)
 RETURNS TABLE(
   zone VARCHAR(10),
-  base_price DECIMAL(10,2),
+  price DECIMAL(10,2),
   row_multipliers JSONB
 ) AS $$
 BEGIN
   RETURN QUERY
-  SELECT zp.zone, zp.base_price, zp.row_multipliers
-  FROM zone_prices zp
+  SELECT zp.zone, zp.price, zp.row_multipliers
+  FROM zone_pricing zp
   WHERE zp.event_id = p_event_id
   ORDER BY zp.zone;
 END;
@@ -137,18 +137,18 @@ $$ LANGUAGE plpgsql;
 CREATE OR REPLACE FUNCTION upsert_zone_price(
   p_event_id UUID,
   p_zone VARCHAR(10),
-  p_base_price DECIMAL(10,2),
+  p_price DECIMAL(10,2),
   p_row_multipliers JSONB DEFAULT '{}'
 )
-RETURNS zone_prices AS $$
+RETURNS zone_pricing AS $$
 DECLARE
-  result zone_prices;
+  result zone_pricing;
 BEGIN
-  INSERT INTO zone_prices (event_id, zone, base_price, row_multipliers)
-  VALUES (p_event_id, p_zone, p_base_price, p_row_multipliers)
+  INSERT INTO zone_pricing (event_id, zone, price, row_multipliers)
+  VALUES (p_event_id, p_zone, p_price, p_row_multipliers)
   ON CONFLICT (event_id, zone)
   DO UPDATE SET
-    base_price = EXCLUDED.base_price,
+    price = EXCLUDED.price,
     row_multipliers = EXCLUDED.row_multipliers,
     updated_at = NOW()
   RETURNING * INTO result;
@@ -186,7 +186,7 @@ CREATE TRIGGER trigger_insert_seats_zone_color
   FOR EACH ROW
   EXECUTE FUNCTION update_seats_zone_color();
 
--- Функция для автоматического обновления цен мест при изменении zone_prices
+-- Функция для автоматического обновления цен мест при изменении zone_pricing
 CREATE OR REPLACE FUNCTION update_seats_pricing()
 RETURNS TRIGGER AS $$
 BEGIN
@@ -203,17 +203,17 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql;
 
--- Триггер для автоматического обновления цен мест при изменении zone_prices
-DROP TRIGGER IF EXISTS trigger_update_seats_pricing ON zone_prices;
+-- Триггер для автоматического обновления цен мест при изменении zone_pricing
+DROP TRIGGER IF EXISTS trigger_update_seats_pricing ON zone_pricing;
 CREATE TRIGGER trigger_update_seats_pricing
-  AFTER UPDATE OF base_price, row_multipliers ON zone_prices
+  AFTER UPDATE OF price, row_multipliers ON zone_pricing
   FOR EACH ROW
   EXECUTE FUNCTION update_seats_pricing();
 
--- Триггер для установки цен при вставке новой zone_price
-DROP TRIGGER IF EXISTS trigger_insert_seats_pricing ON zone_prices;
+-- Триггер для установки цен при вставке новой zone_pricing
+DROP TRIGGER IF EXISTS trigger_insert_seats_pricing ON zone_pricing;
 CREATE TRIGGER trigger_insert_seats_pricing
-  AFTER INSERT ON zone_prices
+  AFTER INSERT ON zone_pricing
   FOR EACH ROW
   EXECUTE FUNCTION update_seats_pricing();
 
@@ -240,13 +240,13 @@ $$ LANGUAGE plpgsql;
 -- МИГРАЦИЯ ДАННЫХ
 -- ============================================================================
 
--- Переносим данные из старой таблицы zone_pricing в новую zone_prices (если существует)
+-- Переносим данные из старой таблицы zone_pricing в новую zone_pricing (если существует)
 DO $$
 BEGIN
-  IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_name = 'zone_pricing') THEN
-    INSERT INTO zone_prices (event_id, zone, base_price, row_multipliers)
-    SELECT event_id, zone, base_price, row_multipliers
-    FROM zone_pricing
+  IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_name = 'zone_pricing_old') THEN
+    INSERT INTO zone_pricing (event_id, zone, price, row_multipliers)
+    SELECT event_id, zone, price, row_multipliers
+    FROM zone_pricing_old
     ON CONFLICT (event_id, zone) DO NOTHING;
   END IF;
 END $$;
@@ -285,7 +285,7 @@ ON CONFLICT (zone) DO UPDATE SET
   sort_order = EXCLUDED.sort_order;
 
 -- Вставляем примерные цены для тестового события
-INSERT INTO zone_prices (event_id, zone, base_price, row_multipliers)
+INSERT INTO zone_pricing (event_id, zone, price, row_multipliers)
 VALUES 
   ('550e8400-e29b-41d4-a716-446655440000', '201', 1500.00, '{"1": 1.2, "2": 1.1, "3": 1.0, "4": 0.9}'),
   ('550e8400-e29b-41d4-a716-446655440000', '202', 1200.00, '{"1": 1.1, "2": 1.0, "3": 0.95}'),
@@ -321,19 +321,19 @@ CREATE POLICY "Allow authenticated users to manage zone_colors" ON zone_colors
 CREATE POLICY "Service role has full access to zone_colors" ON zone_colors
   FOR ALL USING (auth.role() = 'service_role');
 
--- Включаем RLS для таблицы zone_prices
-ALTER TABLE zone_prices ENABLE ROW LEVEL SECURITY;
+-- Включаем RLS для таблицы zone_pricing
+ALTER TABLE zone_pricing ENABLE ROW LEVEL SECURITY;
 
--- Политика для чтения zone_prices (все могут читать)
-CREATE POLICY "Allow read access to zone_prices" ON zone_prices
+-- Политика для чтения zone_pricing (все могут читать)
+CREATE POLICY "Allow read access to zone_pricing" ON zone_pricing
   FOR SELECT USING (true);
 
--- Политика для записи zone_prices (только аутентифицированные пользователи)
-CREATE POLICY "Allow authenticated users to manage zone_prices" ON zone_prices
+-- Политика для записи zone_pricing (только аутентифицированные пользователи)
+CREATE POLICY "Allow authenticated users to manage zone_pricing" ON zone_pricing
   FOR ALL USING (auth.role() = 'authenticated');
 
--- Политика для сервисной роли zone_prices (полный доступ)
-CREATE POLICY "Service role has full access to zone_prices" ON zone_prices
+-- Политика для сервисной роли zone_pricing (полный доступ)
+CREATE POLICY "Service role has full access to zone_pricing" ON zone_pricing
   FOR ALL USING (auth.role() = 'service_role');
 
 -- ============================================================================
@@ -347,11 +347,11 @@ COMMENT ON COLUMN zone_colors.name IS 'Название зоны для отоб
 COMMENT ON COLUMN zone_colors.is_active IS 'Активна ли зона';
 COMMENT ON COLUMN zone_colors.sort_order IS 'Порядок сортировки зон';
 
-COMMENT ON TABLE zone_prices IS 'Хранит цены зон для событий с поддержкой множителей рядов';
-COMMENT ON COLUMN zone_prices.event_id IS 'ID события';
-COMMENT ON COLUMN zone_prices.zone IS 'Идентификатор зоны';
-COMMENT ON COLUMN zone_prices.base_price IS 'Базовая цена зоны';
-COMMENT ON COLUMN zone_prices.row_multipliers IS 'JSON объект с множителями для рядов {"1": 1.2, "2": 1.1}';
+COMMENT ON TABLE zone_pricing IS 'Хранит цены зон для событий с поддержкой множителей рядов';
+COMMENT ON COLUMN zone_pricing.event_id IS 'ID события';
+COMMENT ON COLUMN zone_pricing.zone IS 'Идентификатор зоны';
+COMMENT ON COLUMN zone_pricing.price IS 'Базовая цена зоны';
+COMMENT ON COLUMN zone_pricing.row_multipliers IS 'JSON объект с множителями для рядов {"1": 1.2, "2": 1.1}';
 
 COMMENT ON COLUMN seats.zone_color IS 'Цвет зоны, автоматически обновляется при изменении цвета зоны';
 COMMENT ON COLUMN seats.last_color_update IS 'Время последнего обновления цвета';
@@ -368,7 +368,7 @@ DO $$
 BEGIN
   RAISE NOTICE 'Схема базы данных успешно обновлена!';
   RAISE NOTICE 'Новые возможности:';
-  RAISE NOTICE '- Таблица zone_prices для управления ценами зон';
+  RAISE NOTICE '- Таблица zone_pricing для управления ценами зон';
   RAISE NOTICE '- Автоматическое обновление цветов мест при изменении цвета зоны';
   RAISE NOTICE '- Функции для расчета цен с учетом множителей рядов';
   RAISE NOTICE '- RLS политики для безопасности';

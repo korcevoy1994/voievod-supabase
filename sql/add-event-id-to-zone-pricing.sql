@@ -86,7 +86,7 @@ FROM zone_pricing;
 -- Показываем данные для правильного события
 SELECT 
     zone,
-    base_price,
+    price,
     row_multipliers,
     event_id
 FROM zone_pricing 

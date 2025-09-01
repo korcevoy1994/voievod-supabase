@@ -49,7 +49,7 @@ CREATE TABLE IF NOT EXISTS zone_pricing (
   id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
   event_id UUID NOT NULL REFERENCES events(id) ON DELETE CASCADE,
   zone VARCHAR(10) NOT NULL,
-  base_price DECIMAL(10,2) NOT NULL,
+  price DECIMAL(10,2) NOT NULL,
   row_multipliers JSONB DEFAULT '{}', -- {"1": 1.2, "2": 1.0, "3": 0.8}
   created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
   updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
@@ -152,18 +152,18 @@ $$ language 'plpgsql';
 CREATE OR REPLACE FUNCTION calculate_seat_price(p_event_id UUID, p_zone VARCHAR, p_row VARCHAR)
 RETURNS DECIMAL(10,2) AS $$
 DECLARE
-  base_price DECIMAL(10,2);
+  zone_price DECIMAL(10,2);
   row_multiplier DECIMAL(10,2) := 1.0;
   multipliers JSONB;
 BEGIN
-  -- Получаем базовую цену и мультипликаторы для зоны
-  SELECT zp.base_price, zp.row_multipliers
-  INTO base_price, multipliers
+  -- Получаем цену и мультипликаторы для зоны
+  SELECT zp.price, zp.row_multipliers
+  INTO zone_price, multipliers
   FROM zone_pricing zp
   WHERE zp.event_id = p_event_id AND zp.zone = p_zone;
   
   -- Если зона не найдена, возвращаем NULL
-  IF base_price IS NULL THEN
+  IF zone_price IS NULL THEN
     RETURN NULL;
   END IF;
   
@@ -172,7 +172,7 @@ BEGIN
     row_multiplier := (multipliers ->> p_row)::DECIMAL(10,2);
   END IF;
   
-  RETURN base_price * row_multiplier;
+  RETURN zone_price * row_multiplier;
 END;
 $$ LANGUAGE plpgsql;
 

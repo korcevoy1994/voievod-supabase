@@ -2,10 +2,10 @@ import React from 'react'
 
 const LEGEND = [
   { color: '#179240', label: '650 LEI' },
-  { color: '#8525D9', label: '850 LEI' },
-  { color: '#921792', label: '950 LEI' },
-  { color: '#E7CB15', label: '750 LEI' },
-  { color: '#EA3446', label: '1100 LEI' },
+  { color: '#8525D9', label: '400 LEI' },
+  { color: '#921792', label: '550 LEI' },
+  { color: '#E7CB15', label: '600 LEI' },
+  { color: '#EA3446', label: '750 LEI' },
   { color: '#5BBFD6', label: '500 LEI' },
   { color: '#1B1792', label: '1500-19800 LEI' },
 ]

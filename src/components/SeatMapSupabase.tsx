@@ -49,11 +49,10 @@ interface SeatMapSupabaseProps {
   selectedSeats: string[]
   onSeatClick: (seatId: string) => void
   eventId?: string
-  price: number
 }
 
 const SeatMapSupabase = forwardRef<ReactZoomPanPinchRef, SeatMapSupabaseProps>(
-  ({ zoneId, selectedSeats, onSeatClick, eventId = 'voevoda', price }, ref) => {
+  ({ zoneId, selectedSeats, onSeatClick, eventId = 'voevoda' }, ref) => {
     const { data: seats, loading, error } = useOptimizedZoneSeats(zoneId, eventId)
     const containerRef = useRef<HTMLDivElement>(null)
     const [tooltip, setTooltip] = useState<{ x: number; y: number; content: string } | null>(null)
@@ -210,7 +209,7 @@ const SeatMapSupabase = forwardRef<ReactZoomPanPinchRef, SeatMapSupabaseProps>(
                 setTooltip({
                   x,
                   y,
-                  content: `Rând: ${seat.row}, Loc: ${parseInt(seat.number, 10)}`
+                  content: `Rând: ${seat.row}, Loc: ${parseInt(seat.number, 10)}, Preț: ${seat.price} lei`
                 })
               }
 
@@ -235,7 +234,7 @@ const SeatMapSupabase = forwardRef<ReactZoomPanPinchRef, SeatMapSupabaseProps>(
                   setTooltip({
                     x,
                     y,
-                    content: `Rând: ${seat.row}, Loc: ${parseInt(seat.number, 10)}`
+                    content: `Rând: ${seat.row}, Loc: ${parseInt(seat.number, 10)}, Preț: ${seat.price} lei`
                   })
                 }
               }
