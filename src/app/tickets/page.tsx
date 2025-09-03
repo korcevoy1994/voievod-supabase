@@ -1,28 +1,21 @@
 'use client'
 
-import React, { useState, useEffect, useCallback, useMemo, memo } from 'react'
+import React, { useState, useEffect, useCallback, useMemo, memo, lazy, Suspense } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { useRouter } from 'next/navigation'
 import type { ReactZoomPanPinchRef } from 'react-zoom-pan-pinch'
 
-// Import the SVG as a React component
-import ArenaSVG from '@/components/ArenaSVG'
-import SeatMapSupabase from '@/components/SeatMapSupabase'
-import SelectedTickets from '@/components/SelectedTickets'
-import MobileSelectedTickets from '@/components/MobileSelectedTickets'
+// Lazy load heavy components for better performance
+const ArenaSVG = lazy(() => import('@/components/ArenaSVG'))
+const SeatMapSupabase = lazy(() => import('@/components/SeatMapSupabase'))
+const SelectedTickets = lazy(() => import('@/components/SelectedTickets'))
+const MobileSelectedTickets = lazy(() => import('@/components/MobileSelectedTickets'))
 import LegendBar from '@/components/LegendBar'
 import { useEventPricing } from '@/lib/hooks/useSupabaseData'
 import { useOptimizedEventPricing, useOptimizedZones, useOptimizedZoneColors, useOptimizedVipZones } from '@/lib/hooks/useOptimizedData'
 import { getOrCreateSessionUserId } from '@/lib/userSession'
 import { logger } from '@/lib/logger'
 import { CacheStats } from '@/components/dev/CacheStats'
-
-interface GeneralAccessTicket {
-  id: string;
-  name: string;
-  price: number;
-  quantity: number;
-}
 
 interface VipTicket {
   id: string;
@@ -51,9 +44,6 @@ export default function VoevodaSupabaseEventPage() {
   const [activeZone, setActiveZone] = useState<string | null>(null)
   const [showTooltip, setShowTooltip] = useState(true)
   const [selectedSeats, setSelectedSeats] = useState<Record<string, string[]>>({})
-  const [generalAccessTickets, setGeneralAccessTickets] = useState<GeneralAccessTicket[]>([])
-  const [showGeneralAccessModal, setShowGeneralAccessModal] = useState(false)
-  const [generalAccessQuantity, setGeneralAccessQuantity] = useState(1)
   const [vipTickets, setVipTickets] = useState<VipTicket[]>([])
   const [showVipModal, setShowVipModal] = useState(false)
   const [selectedVipZone, setSelectedVipZone] = useState<string | null>(null)
@@ -62,65 +52,38 @@ export default function VoevodaSupabaseEventPage() {
 
   // Загружаем выбранные места и general access билеты из localStorage при монтировании
   useEffect(() => {
-
-    
-    // Сначала проверяем, есть ли данные checkout (возврат с checkout)
-    const checkoutData = localStorage.getItem('checkout_data')
-
-    
-    if (checkoutData) {
-      try {
-        const data = JSON.parse(checkoutData)
-
-        
-        // Восстанавливаем выбранные места из checkout данных
-         const restoredSeats: Record<string, string[]> = {}
-         
-         data.seats?.forEach((seat: any) => {
-           if (!restoredSeats[seat.zone]) {
-             restoredSeats[seat.zone] = []
-           }
-           restoredSeats[seat.zone].push(seat.id)
-         })
-         setSelectedSeats(restoredSeats)
-
-         
-         // Восстанавливаем general access билеты
-         if (data.generalAccess) {
-           setGeneralAccessTickets(data.generalAccess)
-
-         }
-        
-        return // Выходим, чтобы не загружать из других источников
-      } catch (error) {
-        logger.error('Ошибка восстановления данных из checkout', error)
-      }
-    }
-    
-    // Если нет checkout данных, загружаем из обычного localStorage
+    // Приоритет у актуального состояния voevoda_supabase_selectedSeats
     const savedSeats = localStorage.getItem('voevoda_supabase_selectedSeats')
-
     
     if (savedSeats) {
       try {
         const seats = JSON.parse(savedSeats)
-
         setSelectedSeats(seats)
+        return // Используем актуальное состояние
       } catch (error) {
-        logger.error('Ошибка загрузки сохраненных мест', error)
+        // Ошибка загрузки сохраненных мест
       }
     }
     
-    const savedGeneralAccess = localStorage.getItem('voevoda_supabase_generalAccess')
-
+    // Только если нет актуального состояния, проверяем checkout_data (возврат с checkout)
+    const checkoutData = localStorage.getItem('checkout_data')
     
-    if (savedGeneralAccess) {
+    if (checkoutData) {
       try {
-        const tickets = JSON.parse(savedGeneralAccess)
-
-        setGeneralAccessTickets(tickets)
+        const data = JSON.parse(checkoutData)
+        
+        // Восстанавливаем выбранные места из checkout данных
+        const restoredSeats: Record<string, string[]> = {}
+        
+        data.seats?.forEach((seat: any) => {
+          if (!restoredSeats[seat.zone]) {
+            restoredSeats[seat.zone] = []
+          }
+          restoredSeats[seat.zone].push(seat.id)
+        })
+        setSelectedSeats(restoredSeats)
       } catch (error) {
-        logger.error('Ошибка загрузки general access билетов', error)
+        // Ошибка восстановления данных из checkout
       }
     }
   }, [])
@@ -129,21 +92,24 @@ export default function VoevodaSupabaseEventPage() {
   useEffect(() => {
     localStorage.setItem('voevoda_supabase_selectedSeats', JSON.stringify(selectedSeats))
   }, [selectedSeats])
-  
-  // Сохраняем general access билеты в localStorage при изменении
+
+  // Загружаем VIP билеты из localStorage при монтировании
   useEffect(() => {
-    localStorage.setItem('voevoda_supabase_generalAccess', JSON.stringify(generalAccessTickets))
-  }, [generalAccessTickets])
+    const savedVipTickets = localStorage.getItem('voevoda_supabase_vipTickets')
+    if (savedVipTickets) {
+      try {
+        const tickets = JSON.parse(savedVipTickets)
+        setVipTickets(tickets)
+      } catch (error) {
+        // Ошибка загрузки VIP билетов
+      }
+    }
+  }, [])
 
-
-
-  const GENERAL_ACCESS_MAX = 2000
-  const GENERAL_ACCESS_PRICE = 500
-
-  const currentGeneralAccessCount = useMemo(() => 
-    generalAccessTickets.reduce((sum, ticket) => sum + ticket.quantity, 0), 
-    [generalAccessTickets]
-  )
+  // Сохраняем VIP билеты в localStorage при изменении
+  useEffect(() => {
+    localStorage.setItem('voevoda_supabase_vipTickets', JSON.stringify(vipTickets))
+  }, [vipTickets])
 
   // Мемоизированные выбранные места для активной зоны
   const activeZoneSelectedSeats = useMemo(() => 
@@ -161,12 +127,7 @@ export default function VoevodaSupabaseEventPage() {
     setActiveZone(zoneId)
   }, [])
 
-  const handleGeneralAccessClick = useCallback(() => {
-    // Определяем, это VIP зона или General Access
-    // Если это VIP зона, открываем VIP модальное окно
-    // Пока что открываем General Access модальное окно для всех
-    setShowGeneralAccessModal(true)
-  }, [])
+
 
   const handleVipZoneClick = useCallback((vipZone: string) => {
     setSelectedVipZone(vipZone)
@@ -174,36 +135,7 @@ export default function VoevodaSupabaseEventPage() {
     setVipQuantity(1)
   }, [])
 
-  const handleAddGeneralAccess = useCallback(() => {
-    if (currentGeneralAccessCount + generalAccessQuantity <= GENERAL_ACCESS_MAX) {
-      setGeneralAccessTickets(prev => {
-        const existingTicket = prev.find(ticket => ticket.name === 'General Access')
-        if (existingTicket) {
-          // Update existing ticket quantity
-          return prev.map(ticket => 
-            ticket.name === 'General Access' 
-              ? { ...ticket, quantity: ticket.quantity + generalAccessQuantity }
-              : ticket
-          )
-        } else {
-          // Create new ticket
-          const newTicket: GeneralAccessTicket = {
-            id: `general-${Date.now()}`,
-            name: 'General Access',
-            price: GENERAL_ACCESS_PRICE,
-            quantity: generalAccessQuantity
-          }
-          return [...prev, newTicket]
-        }
-      })
-      setShowGeneralAccessModal(false)
-      setGeneralAccessQuantity(1)
-    }
-  }, [currentGeneralAccessCount, generalAccessQuantity, GENERAL_ACCESS_MAX, GENERAL_ACCESS_PRICE])
 
-  const handleRemoveGeneralAccess = useCallback((ticketId: string) => {
-    setGeneralAccessTickets(prev => prev.filter(ticket => ticket.id !== ticketId))
-  }, [])
 
   // VIP зоны данные из API
   const VIP_ZONES_DATA: Record<string, { name: string; price: number; maxSeats: number }> = useMemo(() => {
@@ -264,17 +196,27 @@ export default function VoevodaSupabaseEventPage() {
     const currentSeats = selectedSeats[activeZone] || []
     const isSelected = currentSeats.includes(seatId)
     
+    let updatedSeats: Record<string, string[]>
+    
     if (isSelected) {
       // Убираем место из выбранных
       const newSeats = currentSeats.filter(id => id !== seatId)
-      setSelectedSeats(prev => ({ ...prev, [activeZone]: newSeats }))
-
+      updatedSeats = { ...selectedSeats, [activeZone]: newSeats }
+      
+      // Если в зоне не осталось мест, удаляем зону полностью
+      if (newSeats.length === 0) {
+        delete updatedSeats[activeZone]
+      }
     } else {
       // Добавляем место в выбранные
       const newSeats = [...currentSeats, seatId]
-      setSelectedSeats(prev => ({ ...prev, [activeZone]: newSeats }))
-
+      updatedSeats = { ...selectedSeats, [activeZone]: newSeats }
     }
+    
+    setSelectedSeats(updatedSeats)
+    
+    // Обновляем localStorage сразу после изменения состояния
+    localStorage.setItem('voevoda_supabase_selectedSeats', JSON.stringify(updatedSeats))
   }, [activeZone, selectedSeats])
 
   const handleZoomIn = useCallback(() => {
@@ -309,7 +251,17 @@ export default function VoevodaSupabaseEventPage() {
     const newSeats = currentSeats.filter(id => id !== seatId)
     
     // Убираем место из выбранных
-    setSelectedSeats(prev => ({ ...prev, [foundZoneId]: newSeats }))
+    const updatedSeats = { ...selectedSeats, [foundZoneId]: newSeats }
+    
+    // Если в зоне не осталось мест, удаляем зону полностью
+    if (newSeats.length === 0) {
+      delete updatedSeats[foundZoneId]
+    }
+    
+    setSelectedSeats(updatedSeats)
+    
+    // Обновляем localStorage сразу после изменения состояния
+    localStorage.setItem('voevoda_supabase_selectedSeats', JSON.stringify(updatedSeats))
 
   }, [selectedSeats])
 
@@ -334,8 +286,8 @@ export default function VoevodaSupabaseEventPage() {
       allSelectedSeats.push(...seats)
     })
     
-    if (allSelectedSeats.length === 0 && generalAccessTickets.length === 0 && vipTickets.length === 0) {
-      alert('Выберите места или билеты общего доступа')
+    if (allSelectedSeats.length === 0 && vipTickets.length === 0) {
+      alert('Выберите места или VIP билеты')
       return
     }
     
@@ -379,7 +331,7 @@ export default function VoevodaSupabaseEventPage() {
              }
           })
         } catch (error) {
-          logger.error('Error fetching seat prices for checkout', error)
+          // Error fetching seat prices for checkout
           // Fallback к старой логике с zonePrices
           seatIds.forEach(seatId => {
             // Не можем парсить ID, так как это теперь TEXT ID из базы
@@ -398,14 +350,12 @@ export default function VoevodaSupabaseEventPage() {
       
       // Подсчитываем общую стоимость
       const totalPrice = checkoutSeats.reduce((sum, seat) => sum + seat.price, 0) + 
-                         generalAccessTickets.reduce((sum, ticket) => sum + (ticket.price * ticket.quantity), 0) +
                          vipTickets.reduce((sum, ticket) => sum + (ticket.price * ticket.quantity), 0)
-      const totalTickets = checkoutSeats.length + generalAccessTickets.reduce((sum, ticket) => sum + ticket.quantity, 0) + vipTickets.reduce((sum, ticket) => sum + ticket.quantity, 0)
+      const totalTickets = checkoutSeats.length + vipTickets.reduce((sum, ticket) => sum + ticket.quantity, 0)
       
       // Сохраняем данные для checkout в localStorage
       const checkoutData = {
         seats: checkoutSeats,
-        generalAccess: generalAccessTickets,
         vipTickets: vipTickets,
         totalPrice,
         totalTickets
@@ -418,10 +368,10 @@ export default function VoevodaSupabaseEventPage() {
 
       router.push('/checkout')
     } catch (error) {
-      logger.error('Ошибка при подготовке к чекауту', error)
+      // Ошибка при подготовке к чекауту
       alert('Произошла ошибка при подготовке к оплате')
     }
-  }, [selectedSeats, generalAccessTickets, vipTickets, zonePrices, router])
+  }, [selectedSeats, vipTickets, zonePrices, router])
 
   // Показываем загрузку, если цены еще не загружены
   if (pricingLoading) {
@@ -458,7 +408,7 @@ export default function VoevodaSupabaseEventPage() {
                 <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2 sm:gap-4 mb-3 sm:mb-6 lg:mb-8">
                   <div className="flex items-center gap-4">
                     <h1 className="text-xl sm:text-2xl lg:text-3xl xl:text-4xl font-bold text-white">
-                      Voievoda
+                      Bilete
                     </h1>
 
                   </div>
@@ -467,17 +417,22 @@ export default function VoevodaSupabaseEventPage() {
                 <div className="flex flex-col flex-1 min-h-0">
                   <LegendBar />
                   <div className="flex-1 flex items-center justify-center min-h-0">
-                    <ArenaSVG 
-                      onZoneClick={handleZoneClick} 
-                      selectedSeats={selectedSeats} 
-                      onGeneralAccessClick={handleGeneralAccessClick}
-                      onVipZoneClick={handleVipZoneClick}
-                      zonePrices={zonePrices}
-                      generalAccessCount={currentGeneralAccessCount}
-                      zoneColors={zoneColors?.zoneColors}
-                      vipZonesData={vipZonesData}
-                      vipTickets={vipTickets}
-                    />
+                    <Suspense fallback={
+                      <div className="flex items-center justify-center w-full h-full">
+                        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-red-600"></div>
+                      </div>
+                    }>
+                      <ArenaSVG 
+                        onZoneClick={handleZoneClick} 
+                        selectedSeats={selectedSeats} 
+                        onVipZoneClick={handleVipZoneClick}
+                        zonePrices={zonePrices}
+                        zoneColors={zoneColors?.zoneColors}
+                        zoneStatus={zoneColors?.zoneStatus}
+                        vipZonesData={vipZonesData}
+                        vipTickets={vipTickets}
+                      />
+                    </Suspense>
                   </div>
                 </div>
               </motion.div>
@@ -545,13 +500,19 @@ export default function VoevodaSupabaseEventPage() {
                 <div className="relative flex-1 flex flex-col min-h-0">
                   <div className="relative flex-1 overflow-hidden">
                     {activeZone && (
-                      <SeatMapSupabase
-                        ref={seatmapRef}
-                        zoneId={activeZone}
-                        selectedSeats={currentZoneSeats}
-                        onSeatClick={handleSeatClick}
-                        eventId="550e8400-e29b-41d4-a716-446655440000"
-                      />
+                      <Suspense fallback={
+                        <div className="flex items-center justify-center w-full h-full">
+                          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-red-600"></div>
+                        </div>
+                      }>
+                        <SeatMapSupabase
+                          ref={seatmapRef}
+                          zoneId={activeZone}
+                          selectedSeats={currentZoneSeats}
+                          onSeatClick={handleSeatClick}
+                          eventId="550e8400-e29b-41d4-a716-446655440000"
+                        />
+                      </Suspense>
                     )}
                   </div>
                   {/* Mobile Zoom Controls */}
@@ -584,123 +545,42 @@ export default function VoevodaSupabaseEventPage() {
         </div>
 
         <div className="hidden lg:block lg:w-1/4 min-w-[280px] xl:min-w-[320px] h-full">
-          <SelectedTickets
-            selectedSeats={selectedSeats}
-            zonePrices={zonePrices}
-            onRemoveSeat={handleRemoveSeat}
-            generalAccessTickets={generalAccessTickets}
-            onGeneralAccessRemove={handleRemoveGeneralAccess}
-            vipTickets={vipTickets}
-            onVipRemove={handleRemoveVipTicket}
-            onCheckout={handleCheckout}
-          />
+          <Suspense fallback={
+            <div className="flex items-center justify-center w-full h-32">
+              <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-red-600"></div>
+            </div>
+          }>
+            <SelectedTickets
+              selectedSeats={selectedSeats}
+              zonePrices={zonePrices}
+              onRemoveSeat={handleRemoveSeat}
+              vipTickets={vipTickets}
+              onVipRemove={handleRemoveVipTicket}
+              onCheckout={handleCheckout}
+            />
+          </Suspense>
         </div>
       </div>
 
       {/* Mobile Selected Tickets - Always visible at bottom */}
-      <MobileSelectedTickets
-        selectedSeats={selectedSeats}
-        zonePrices={zonePrices}
-        onRemoveSeat={handleRemoveSeat}
-        generalAccessTickets={generalAccessTickets}
-        onGeneralAccessRemove={handleRemoveGeneralAccess}
-        vipTickets={vipTickets}
-        onVipRemove={handleRemoveVipTicket}
-        onCheckout={handleCheckout}
-      />
-
-      {/* General Access Modal */}
-      {showGeneralAccessModal && (
-        <div 
-          className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4"
-          onClick={() => setShowGeneralAccessModal(false)}
-        >
-          <div 
-            className="bg-gradient-to-br from-gray-800 to-gray-900 rounded-2xl p-6 w-full max-w-md shadow-2xl border border-gray-700"
-            onClick={(e) => e.stopPropagation()}
-          >
-            {/* Header */}
-            <div className="flex items-center justify-between mb-6">
-              <h3 className="text-2xl font-bold text-white">Acces General</h3>
-              <button 
-                onClick={() => setShowGeneralAccessModal(false)}
-                className="w-8 h-8 rounded-full bg-gray-700 hover:bg-gray-600 flex items-center justify-center text-gray-400 hover:text-white transition-colors cursor-pointer"
-              >
-                ×
-              </button>
-            </div>
-
-            {/* Price Info */}
-            <div className="bg-gray-700/50 rounded-xl p-4 mb-6">
-              <div className="flex items-center justify-between">
-                <span className="text-gray-300">Preț per bilet:</span>
-                <span className="text-2xl font-bold text-green-400">{GENERAL_ACCESS_PRICE} Lei</span>
-              </div>
-            </div>
-            
-            {/* Quantity Selector */}
-            <div className="mb-6">
-              <label className="block text-sm font-medium text-gray-300 mb-3">Cantitate:</label>
-              <div className="flex items-center justify-center space-x-4">
-                <button 
-                  onClick={() => setGeneralAccessQuantity(Math.max(1, generalAccessQuantity - 1))}
-                  disabled={generalAccessQuantity <= 1}
-                  className="w-12 h-12 rounded-xl bg-gray-700 hover:bg-gray-600 disabled:bg-gray-800 disabled:text-gray-600 flex items-center justify-center text-xl font-bold text-white transition-colors cursor-pointer disabled:cursor-not-allowed"
-                >
-                  −
-                </button>
-                <div className="bg-gray-700/50 rounded-xl px-6 py-3 min-w-[80px] text-center">
-                  <span className="text-2xl font-bold text-white">{generalAccessQuantity}</span>
-                </div>
-                <button 
-                  onClick={() => setGeneralAccessQuantity(Math.min(GENERAL_ACCESS_MAX - currentGeneralAccessCount, generalAccessQuantity + 1))}
-                  disabled={generalAccessQuantity >= GENERAL_ACCESS_MAX - currentGeneralAccessCount}
-                  className="w-12 h-12 rounded-xl bg-gray-700 hover:bg-gray-600 disabled:bg-gray-800 disabled:text-gray-600 flex items-center justify-center text-xl font-bold text-white transition-colors cursor-pointer disabled:cursor-not-allowed"
-                >
-                  +
-                </button>
-              </div>
-            </div>
-
-            {/* Total */}
-            <div className="bg-blue-600/20 border border-blue-500/30 rounded-xl p-4 mb-6">
-              <div className="flex items-center justify-between">
-                <span className="text-blue-300 font-medium">Total:</span>
-                <span className="text-2xl font-bold text-blue-400">
-                  {generalAccessQuantity * GENERAL_ACCESS_PRICE} Lei
-                </span>
-              </div>
-            </div>
-
-            {/* Total */}
-            <div className="bg-blue-600/20 border border-blue-500/30 rounded-xl p-4 mb-6">
-              <div className="flex items-center justify-between">
-                <span className="text-blue-300 font-medium">Total:</span>
-                <span className="text-2xl font-bold text-blue-400">
-                   {selectedVipZone ? (VIP_ZONES_DATA[selectedVipZone]?.price || 0) : 0} Lei
-                 </span>
-              </div>
-            </div>
-
-            {/* Action Buttons */}
-            <div className="flex space-x-3">
-              <button 
-                onClick={() => setShowGeneralAccessModal(false)}
-                className="flex-1 py-3 px-4 bg-gray-700 hover:bg-gray-600 text-white font-medium rounded-xl transition-colors cursor-pointer"
-              >
-                Anulează
-              </button>
-              <button 
-                onClick={handleAddGeneralAccess}
-                disabled={currentGeneralAccessCount + generalAccessQuantity > GENERAL_ACCESS_MAX}
-                className="flex-1 py-3 px-4 bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-500 hover:to-blue-600 disabled:from-gray-600 disabled:to-gray-700 text-white font-bold rounded-xl transition-all shadow-lg disabled:shadow-none cursor-pointer disabled:cursor-not-allowed"
-              >
-                Adaugă în coș
-              </button>
-            </div>
+      <Suspense fallback={
+        <div className="lg:hidden fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200 p-4">
+          <div className="flex items-center justify-center">
+            <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-red-600"></div>
           </div>
         </div>
-      )}
+      }>
+        <MobileSelectedTickets
+          selectedSeats={selectedSeats}
+          zonePrices={zonePrices}
+          onRemoveSeat={handleRemoveSeat}
+          vipTickets={vipTickets}
+          onVipRemove={handleRemoveVipTicket}
+          onCheckout={handleCheckout}
+        />
+      </Suspense>
+
+
 
       {/* VIP Modal */}
       {showVipModal && selectedVipZone && (

@@ -75,6 +75,11 @@ export async function GET(request: NextRequest) {
           created_at,
           updated_at,
           completed_at
+        ),
+        order_seats (
+          id,
+          seat_id,
+          price
         )
       `, { count: 'exact' });
 
@@ -106,11 +111,40 @@ export async function GET(request: NextRequest) {
     const { data: orders, error, count } = await query;
 
     if (error) {
-      console.error('Error fetching orders:', error);
+      // Error fetching orders;
       return NextResponse.json(
         { error: 'Ошибка получения заказов', details: error.message },
         { status: 500 }
       );
+    }
+
+    // Получаем данные о местах отдельно
+    if (orders && orders.length > 0) {
+      const allSeatIds = orders
+        .flatMap(order => order.order_seats || [])
+        .map(orderSeat => orderSeat.seat_id)
+        .filter(Boolean);
+
+      if (allSeatIds.length > 0) {
+        const { data: seats } = await supabase
+          .from('seats')
+          .select('id, zone, row, number, price, status')
+          .in('id', allSeatIds);
+
+        // Добавляем данные о местах к order_seats
+        if (seats) {
+          orders.forEach(order => {
+            if (order.order_seats) {
+              order.order_seats.forEach(orderSeat => {
+                const seatData = seats.find(seat => seat.id === orderSeat.seat_id);
+                 if (seatData) {
+                   (orderSeat as any).seats = seatData;
+                 }
+              });
+            }
+          });
+        }
+      }
     }
 
     // Фильтрация по статусу платежа если указан

@@ -199,7 +199,7 @@ export const useLongTaskMonitor = () => {
       const observer = new PerformanceObserver((list) => {
         for (const entry of list.getEntries()) {
           if (entry.duration > 50) { // Задачи длиннее 50ms
-            console.warn(`Long task detected: ${entry.duration.toFixed(2)}ms`, entry)
+            // Long task detected
           }
         }
       })
@@ -207,7 +207,7 @@ export const useLongTaskMonitor = () => {
       try {
         observer.observe({ entryTypes: ['longtask'] })
       } catch (err) {
-        console.warn('Long task monitoring not supported')
+        // Long task monitoring not supported
       }
       
       return () => {
@@ -224,7 +224,7 @@ export const useLayoutShiftMonitor = () => {
       const observer = new PerformanceObserver((list) => {
         for (const entry of list.getEntries()) {
           if ((entry as any).value > 0.1) { // CLS больше 0.1
-            console.warn(`Layout shift detected: ${(entry as any).value.toFixed(4)}`, entry)
+            // Layout shift detected
           }
         }
       })
@@ -232,7 +232,7 @@ export const useLayoutShiftMonitor = () => {
       try {
         observer.observe({ entryTypes: ['layout-shift'] })
       } catch (err) {
-        console.warn('Layout shift monitoring not supported')
+        // Layout shift monitoring not supported
       }
       
       return () => {
@@ -250,7 +250,7 @@ export const useFirstInputDelayMonitor = () => {
         for (const entry of list.getEntries()) {
           const fid = (entry as any).processingStart - entry.startTime
           if (fid > 100) { // FID больше 100ms
-            console.warn(`High First Input Delay: ${fid.toFixed(2)}ms`, entry)
+            // High First Input Delay
           }
         }
       })
@@ -258,7 +258,7 @@ export const useFirstInputDelayMonitor = () => {
       try {
         observer.observe({ entryTypes: ['first-input'] })
       } catch (err) {
-        console.warn('First Input Delay monitoring not supported')
+        // First Input Delay monitoring not supported
       }
       
       return () => {

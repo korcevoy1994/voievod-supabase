@@ -94,7 +94,7 @@ class DataCache {
 const globalCache = new DataCache()
 
 // Хук для получения данных о зонах с кэшированием
-export function useZones() {
+export function useZones(eventId: string = '550e8400-e29b-41d4-a716-446655440000') {
   const [zones, setZones] = useState<ZoneData[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -144,7 +144,7 @@ export function useZones() {
 }
 
 // Хук для получения мест конкретной зоны с кэшированием и предзагрузкой
-export function useZoneSeats(zoneId: string | null) {
+export function useZoneSeats(zoneId: string | null, eventId: string = '550e8400-e29b-41d4-a716-446655440000') {
   const [seats, setSeats] = useState<SeatData[]>([])
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -168,9 +168,9 @@ export function useZoneSeats(zoneId: string | null) {
     preloadTimeoutRef.current = setTimeout(() => {
       adjacentZones.forEach(zoneId => {
         globalCache.getOrFetch(
-          `seats-${zoneId}`,
+          `seats-${zoneId}-${eventId}`,
           async () => {
-            const response = await fetch(`/api/zones/${zoneId}/seats`)
+            const response = await fetch(`/api/zones/${zoneId}/seats?eventId=${eventId}`)
             if (!response.ok) throw new Error('Failed to preload seats')
             const result = await response.json()
             return result.seats
@@ -194,9 +194,9 @@ export function useZoneSeats(zoneId: string | null) {
       setLoading(true)
       try {
         const data = await globalCache.getOrFetch(
-          `seats-${zoneId}`,
+          `seats-${zoneId}-${eventId}`,
           async () => {
-            const response = await fetch(`/api/zones/${zoneId}/seats`)
+            const response = await fetch(`/api/zones/${zoneId}/seats?eventId=${eventId}`)
             if (!response.ok) {
               throw new Error('Failed to fetch seats')
             }

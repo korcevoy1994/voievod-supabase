@@ -177,7 +177,7 @@ export async function GET(request: NextRequest) {
         })
         .eq('id', payment.id);
 
-      // Если платеж завершен успешно, обновляем заказ
+      // Если платеж завершен успешно, обновляем заказ и блокируем места
       if (status === 'completed') {
         await supabase
           .from('orders')
@@ -186,6 +186,24 @@ export async function GET(request: NextRequest) {
             updated_at: new Date().toISOString()
           })
           .eq('id', payment.order_id);
+
+        // Получаем места, связанные с заказом, и устанавливаем их статус в 'sold'
+        const { data: orderSeats, error: seatsError } = await supabase
+          .from('order_seats')
+          .select('seat_id')
+          .eq('order_id', payment.order_id);
+
+        if (!seatsError && orderSeats && orderSeats.length > 0) {
+          const seatIds = orderSeats.map(os => os.seat_id);
+          
+          await supabase
+            .from('seats')
+            .update({ 
+              status: 'sold',
+              updated_at: new Date().toISOString() 
+            })
+            .in('id', seatIds);
+        }
       }
     }
 

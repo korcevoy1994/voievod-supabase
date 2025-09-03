@@ -181,7 +181,7 @@ export default function InvitationsPage() {
       setCreatedOrderId(result.orderId)
       setStep('success')
     } catch (error) {
-      console.error('Error creating invitation:', error)
+      // Error creating invitation
       alert(error instanceof Error ? error.message : 'Ошибка создания пригласительного')
     } finally {
       setIsCreating(false)
@@ -207,7 +207,7 @@ export default function InvitationsPage() {
       window.URL.revokeObjectURL(url)
       document.body.removeChild(a)
     } catch (error) {
-      console.error('Error downloading tickets:', error)
+      // Error downloading tickets
       alert('Ошибка загрузки билетов')
     }
   }
@@ -368,6 +368,7 @@ export default function InvitationsPage() {
                    selectedSeats={selectedSeats}
                    onZoneClick={handleZoneClick}
                    zoneColors={zoneColors?.zoneColors}
+                   zoneStatus={zoneColors?.zoneStatus}
                  />
               )}
             </div>

@@ -10,7 +10,8 @@ export const GET = withErrorHandling(async () => {
     .select(`
       zone,
       color,
-      name
+      name,
+      is_active
     `)
     .order('zone')
 
@@ -20,12 +21,15 @@ export const GET = withErrorHandling(async () => {
 
   // Преобразуем в формат объекта для удобства использования
   const zoneColors: Record<string, string> = {}
+  const zoneStatus: Record<string, boolean> = {}
   colors?.forEach(item => {
     zoneColors[item.zone] = item.color
+    zoneStatus[item.zone] = item.is_active ?? true
   })
 
   return createSuccessResponse({ 
     zoneColors,
+    zoneStatus,
     detailedColors: colors 
   })
 }, 'GET /api/zones/colors')

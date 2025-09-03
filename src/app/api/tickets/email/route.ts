@@ -369,11 +369,7 @@ export async function POST(request: NextRequest) {
     
     const info = await transporter.sendMail(mailOptions)
     
-    console.log('✅ Email отправлен успешно!')
-    console.log('📧 Message ID:', info.messageId)
-    console.log('📧 Response:', info.response)
-    console.log('📧 Envelope:', info.envelope)
-    console.log('📧 Preview URL:', nodemailer.getTestMessageUrl(info))
+    // Email sent successfully
     
     // Дополнительная информация для отладки
     if (info.accepted && info.accepted.length > 0) {
@@ -391,7 +387,7 @@ export async function POST(request: NextRequest) {
     })
     
   } catch (error) {
-    console.error('❌ Ошибка отправки email:', error)
+    // Error sending email
     return NextResponse.json(
       { error: 'Failed to send email' },
       { status: 500 }

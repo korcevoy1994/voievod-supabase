@@ -105,7 +105,7 @@ class MaibClient {
     if (paymentData.failUrl) requestBody.failUrl = paymentData.failUrl;
     if (paymentData.callbackUrl) requestBody.callbackUrl = paymentData.callbackUrl;
 
-    // Debug logs removed for production
+
 
     const response = await fetch(`${this.baseUrl}/pay`, {
       method: 'POST',
@@ -118,8 +118,9 @@ class MaibClient {
 
     if (!response.ok) {
       let errorMessage = response.statusText;
+      let responseText = '';
       try {
-        const responseText = await response.text();
+        responseText = await response.text();
         if (responseText) {
           try {
             const errorData = JSON.parse(responseText);
@@ -138,6 +139,9 @@ class MaibClient {
       } catch {
         // Используем statusText если не можем прочитать ответ
       }
+      
+
+      
       throw new Error(`Payment creation failed: ${response.status} ${errorMessage}`);
     }
 
@@ -289,7 +293,7 @@ class MaibClient {
 
       return signature === expectedSignature;
     } catch (error) {
-      console.error('Error verifying callback signature:', error);
+      // Error verifying callback signature
       return false;
     }
   }

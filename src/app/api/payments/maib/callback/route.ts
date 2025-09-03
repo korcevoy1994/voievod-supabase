@@ -160,8 +160,23 @@ export async function POST(request: NextRequest) {
         logger.error('Error updating order status', orderUpdateError);
       }
 
-      // Если платеж успешен, генерируем QR код если его еще нет
+      // Обновляем статус мест в зависимости от статуса платежа
       if (newStatus === 'completed') {
+        // Если платеж успешен, помечаем места как проданные
+        const { data: orderSeats } = await supabase
+          .from('order_seats')
+          .select('seat_id')
+          .eq('order_id', payment.order_id);
+
+        if (orderSeats && orderSeats.length > 0) {
+          const seatIds = orderSeats.map(os => os.seat_id);
+          await supabase
+            .from('seats')
+            .update({ status: 'sold' })
+            .in('id', seatIds);
+        }
+
+        // Генерируем QR код если его еще нет
         const { data: order } = await supabase
           .from('orders')
           .select('qr_code')
@@ -176,6 +191,26 @@ export async function POST(request: NextRequest) {
           if (qrError) {
             logger.error('Error generating QR code', qrError);
           }
+        }
+      } else if (newStatus === 'failed' || newStatus === 'cancelled') {
+        // Если платеж неудачен, освобождаем места
+        const { data: orderSeats } = await supabase
+          .from('order_seats')
+          .select('seat_id')
+          .eq('order_id', payment.order_id);
+
+        if (orderSeats && orderSeats.length > 0) {
+          const seatIds = orderSeats.map(os => os.seat_id);
+          await supabase
+            .from('seats')
+            .update({ status: 'available' })
+            .in('id', seatIds);
+          
+          logger.info(`Released ${seatIds.length} seats for failed payment`, {
+            orderId: payment.order_id,
+            paymentId: payment.id,
+            seatIds
+          });
         }
       }
     }

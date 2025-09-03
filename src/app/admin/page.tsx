@@ -2,10 +2,14 @@
 
 import React, { useState, useEffect } from 'react'
 import { motion } from 'framer-motion'
-import { Search, Filter, Download, Eye, Edit, RefreshCw, Calendar, DollarSign, Users, TrendingUp, RotateCcw, Plus, LogOut } from 'lucide-react'
+import { Search, Filter, Download, Eye, Edit, RefreshCw, Calendar, DollarSign, Users, TrendingUp, RotateCcw, Plus, LogOut, BarChart3 } from 'lucide-react'
 import { useRouter } from 'next/navigation'
 import { getSupabaseBrowserSSRClient } from '@/lib/supabase-ssr'
 import AdminLogin from '@/components/AdminLogin'
+import Dashboard from '@/components/admin/Dashboard'
+import PriceManagement from '@/components/admin/PriceManagement'
+import VenueMap from '@/components/admin/VenueMap'
+import ZoneAnalytics from '@/components/admin/ZoneAnalytics'
 
 interface OrderPayment {
   id: string
@@ -18,6 +22,19 @@ interface OrderPayment {
   created_at: string
   updated_at: string
   completed_at?: string
+}
+
+interface OrderSeat {
+  id: string
+  seat_id: string
+  seats: {
+    id: string
+    zone: string
+    row: string
+    number: string
+    price: number
+    status: string
+  }
 }
 
 interface Order {
@@ -33,6 +50,7 @@ interface Order {
   created_at: string
   updated_at: string
   order_payments: OrderPayment[]
+  order_seats: OrderSeat[]
 }
 
 interface OrdersResponse {
@@ -75,6 +93,7 @@ const paymentStatusColors = {
 
 export default function AdminPage() {
   const router = useRouter()
+  const [activeTab, setActiveTab] = useState<'dashboard' | 'orders' | 'pricing' | 'venue' | 'analytics'>('dashboard')
   const [isAuthenticated, setIsAuthenticated] = useState(false)
   const [authLoading, setAuthLoading] = useState(true)
   const [orders, setOrders] = useState<Order[]>([])
@@ -105,6 +124,7 @@ export default function AdminPage() {
   const [isProcessingRefund, setIsProcessingRefund] = useState(false)
   const [refundType, setRefundType] = useState<'full' | 'partial'>('full')
   const [refundAmount, setRefundAmount] = useState('')
+
   const [stats, setStats] = useState({
     totalOrders: 0,
     totalRevenue: 0,
@@ -254,7 +274,7 @@ export default function AdminPage() {
       // Обновляем список заказов
       fetchOrders()
     } catch (error: any) {
-      console.error('Error processing refund:', error)
+      // Error processing refund
       alert(`Ошибка при обработке возврата: ${error.message}`)
     } finally {
       setIsProcessingRefund(false)
@@ -272,6 +292,35 @@ export default function AdminPage() {
   const getLatestPayment = (order: Order): OrderPayment | null => {
     if (!order.order_payments || order.order_payments.length === 0) return null
     return order.order_payments[0] // API уже сортирует по created_at desc
+  }
+
+  const downloadTicketsPDF = async (orderId: string) => {
+    try {
+      const response = await fetch(`/api/tickets/pdf?orderId=${orderId}`, {
+        method: 'GET',
+        headers: {
+          'Content-Type': 'application/zip',
+        },
+      })
+
+      if (!response.ok) {
+        throw new Error('Ошибка при загрузке билетов')
+      }
+
+      const blob = await response.blob()
+      const url = window.URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.style.display = 'none'
+      a.href = url
+      a.download = `bilete-${orderId}.zip`
+      document.body.appendChild(a)
+      a.click()
+      window.URL.revokeObjectURL(url)
+      document.body.removeChild(a)
+    } catch (error) {
+      // Error downloading tickets
+      alert('Ошибка при скачивании билетов')
+    }
   }
 
   // Проверка аутентификации при загрузке
@@ -347,6 +396,8 @@ export default function AdminPage() {
     setIsAuthenticated(false)
   }
 
+
+
   const handleLoginSuccess = () => {
     setIsAuthenticated(true)
     // Принудительно обновляем страницу для синхронизации с middleware
@@ -388,13 +439,17 @@ export default function AdminPage() {
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex justify-between items-center py-6">
             <div>
-              <h1 className="text-3xl font-bold text-gray-900">Админка заказов</h1>
-              <p className="text-gray-600 mt-1">Управление и отслеживание заказов</p>
+              <h1 className="text-3xl font-bold text-gray-900">
+                {activeTab === 'dashboard' ? 'Дашборд' : activeTab === 'pricing' ? 'Управление ценами' : activeTab === 'venue' ? 'Карта зала' : activeTab === 'analytics' ? 'Аналитика зон' : 'Админка заказов'}
+              </h1>
+              <p className="text-gray-600 mt-1">
+                {activeTab === 'dashboard' ? 'Аналитика и статистика продаж' : activeTab === 'pricing' ? 'Настройка цен по зонам и массовое редактирование' : activeTab === 'venue' ? 'Визуальная карта зала с управлением статусами мест' : activeTab === 'analytics' ? 'Статистика продаж и отчеты по периодам' : 'Управление и отслеживание заказов'}
+              </p>
             </div>
             <div className="flex space-x-3">
               <button
                 onClick={() => {
-                  console.log('Кнопка Пригласительные нажата')
+                  // Кнопка Пригласительные нажата
                   router.push('/admin/invitations')
                 }}
                 className="inline-flex items-center px-4 py-2 bg-purple-600 border border-transparent rounded-md shadow-sm text-sm font-medium text-white hover:bg-purple-700"
@@ -423,6 +478,7 @@ export default function AdminPage() {
                 <RefreshCw className={`h-4 w-4 mr-2 ${loading ? 'animate-spin' : ''}`} />
                 Обновить
               </button>
+
               <button
                 onClick={handleLogout}
                 className="inline-flex items-center px-4 py-2 bg-red-600 border border-transparent rounded-md shadow-sm text-sm font-medium text-white hover:bg-red-700"
@@ -432,11 +488,84 @@ export default function AdminPage() {
               </button>
             </div>
           </div>
+          
+          {/* Navigation Tabs */}
+          <div className="border-t border-gray-200">
+            <nav className="-mb-px flex space-x-8">
+              <button
+                onClick={() => setActiveTab('dashboard')}
+                className={`py-4 px-1 border-b-2 font-medium text-sm ${
+                  activeTab === 'dashboard'
+                    ? 'border-blue-500 text-blue-600'
+                    : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                }`}
+              >
+                <BarChart3 className="h-4 w-4 mr-2 inline" />
+                Дашборд
+              </button>
+              <button
+                onClick={() => setActiveTab('orders')}
+                className={`py-4 px-1 border-b-2 font-medium text-sm ${
+                  activeTab === 'orders'
+                    ? 'border-blue-500 text-blue-600'
+                    : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                }`}
+              >
+                <Users className="h-4 w-4 mr-2 inline" />
+                Заказы
+              </button>
+              <button
+                onClick={() => setActiveTab('pricing')}
+                className={`py-4 px-1 border-b-2 font-medium text-sm ${
+                  activeTab === 'pricing'
+                    ? 'border-blue-500 text-blue-600'
+                    : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                }`}
+              >
+                <DollarSign className="h-4 w-4 mr-2 inline" />
+                 Цены
+               </button>
+               <button
+                 onClick={() => setActiveTab('venue')}
+                 className={`py-4 px-1 border-b-2 font-medium text-sm ${
+                   activeTab === 'venue'
+                     ? 'border-blue-500 text-blue-600'
+                     : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                 }`}
+               >
+                 <Users className="h-4 w-4 mr-2 inline" />
+                 Карта зала
+               </button>
+               <button
+                 onClick={() => setActiveTab('analytics')}
+                 className={`py-4 px-1 border-b-2 font-medium text-sm ${
+                   activeTab === 'analytics'
+                     ? 'border-blue-500 text-blue-600'
+                     : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                 }`}
+               >
+                 <TrendingUp className="h-4 w-4 mr-2 inline" />
+                 Аналитика
+               </button>
+            </nav>
+          </div>
         </div>
       </div>
 
-      {/* Stats Cards */}
+      {/* Content */}
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
+        {activeTab === 'dashboard' ? (
+          <Dashboard />
+        ) : activeTab === 'pricing' ? (
+           <PriceManagement />
+         ) : activeTab === 'venue' ? (
+           <VenueMap />
+         ) : activeTab === 'analytics' ? (
+           <ZoneAnalytics />
+         ) : (
+          <>
+            {/* Stats Cards */}
+            <div>
         <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-6">
           <div className="bg-white rounded-lg shadow p-6">
             <div className="flex items-center">
@@ -804,7 +933,14 @@ export default function AdminPage() {
                 </div>
                 
                 {selectedOrder.status === 'paid' && (
-                  <div className="flex justify-end">
+                  <div className="flex justify-end gap-2">
+                    <button
+                      onClick={() => downloadTicketsPDF(selectedOrder.id)}
+                      className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 flex items-center gap-2"
+                    >
+                      <Download className="w-4 h-4" />
+                      Скачать билеты PDF
+                    </button>
                     <button
                       onClick={() => {
                         setIsDetailsModalOpen(false)
@@ -834,6 +970,37 @@ export default function AdminPage() {
                     <p className="text-sm text-gray-900">{formatCurrency(selectedOrder.total_price)}</p>
                     <p className="text-sm text-gray-500">{selectedOrder.total_tickets} билетов</p>
                   </div>
+                </div>
+                
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">Купленные места</label>
+                  {selectedOrder.order_seats && selectedOrder.order_seats.length > 0 ? (
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-2 mb-4">
+                      {selectedOrder.order_seats.map((orderSeat) => (
+                        <div key={orderSeat.id} className="border rounded-lg p-3 bg-blue-50">
+                          <div className="flex justify-between items-center">
+                            <div>
+                              <p className="text-sm font-medium">
+                                Зона {orderSeat.seats.zone}, Ряд {orderSeat.seats.row}, Место {orderSeat.seats.number}
+                              </p>
+                              <p className="text-xs text-gray-600">
+                                {formatCurrency(orderSeat.seats.price)}
+                              </p>
+                            </div>
+                            <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${
+                              orderSeat.seats.status === 'sold' ? 'bg-green-100 text-green-800' : 
+                              orderSeat.seats.status === 'available' ? 'bg-gray-100 text-gray-800' :
+                              'bg-yellow-100 text-yellow-800'
+                            }`}>
+                              {orderSeat.seats.status}
+                            </span>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <p className="text-sm text-gray-500 mb-4">Нет информации о местах</p>
+                  )}
                 </div>
                 
                 <div>
@@ -990,6 +1157,9 @@ export default function AdminPage() {
           </div>
         </div>
       )}
+          </>
+        )}
+      </div>
     </div>
   )
 }

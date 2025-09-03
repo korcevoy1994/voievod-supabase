@@ -73,7 +73,7 @@ const UserOrders: React.FC<UserOrdersProps> = ({ className = '' }) => {
       const data = await response.json()
       setOrders(data.orders || [])
     } catch (err) {
-      console.error('Ошибка загрузки заказов:', err)
+      // Ошибка загрузки заказов
       setError(err instanceof Error ? err.message : 'Неизвестная ошибка')
     } finally {
       setLoading(false)
@@ -124,7 +124,7 @@ const UserOrders: React.FC<UserOrdersProps> = ({ className = '' }) => {
     try {
       setDownloadingPdf(orderId)
       
-      console.log('Скачивание PDF для заказа:', orderId)
+      // Скачивание PDF для заказа
       const response = await fetch(`/api/tickets/pdf?orderId=${orderId}`)
       
       if (!response.ok) {
@@ -149,9 +149,9 @@ const UserOrders: React.FC<UserOrdersProps> = ({ className = '' }) => {
       window.URL.revokeObjectURL(url)
       document.body.removeChild(a)
       
-      console.log('PDF успешно скачан')
+      // PDF успешно скачан
     } catch (error) {
-      console.error('Ошибка скачивания PDF:', error)
+      // Ошибка скачивания PDF
       const errorMessage = error instanceof Error ? error.message : 'Неизвестная ошибка'
       alert(`Ошибка при скачивании билета: ${errorMessage}. Попробуйте позже или обратитесь в поддержку.`)
     } finally {

@@ -50,7 +50,7 @@ export default function ZonePriceManager({ eventId, onPriceUpdate }: ZonePriceMa
       setBasePrice(0)
       setRowMultipliers({})
     } catch (error) {
-      console.error('Failed to update pricing:', error)
+      // Failed to update pricing
     } finally {
       setUpdating(false)
     }
@@ -110,7 +110,7 @@ export default function ZonePriceManager({ eventId, onPriceUpdate }: ZonePriceMa
             <div key={zonePricing.zone} className="p-3 bg-gray-700 rounded">
               <div className="flex justify-between items-center mb-2">
                 <span className="text-white font-medium">Зона {zonePricing.zone}</span>
-                <span className="text-green-400 font-bold">{zonePricing.base_price}₽</span>
+                <span className="text-green-400 font-bold">{zonePricing.base_price} MDL</span>
               </div>
               {zonePricing.row_multipliers && Object.keys(zonePricing.row_multipliers).length > 0 && (
                 <div className="text-xs text-gray-400">
@@ -160,7 +160,7 @@ export default function ZonePriceManager({ eventId, onPriceUpdate }: ZonePriceMa
 
         {/* Базовая цена */}
         <div>
-          <label className="block text-xs text-gray-400 mb-1">Базовая цена (₽):</label>
+          <label className="block text-xs text-gray-400 mb-1">Базовая цена (MDL):</label>
           <input
             type="number"
             value={basePrice || ''}

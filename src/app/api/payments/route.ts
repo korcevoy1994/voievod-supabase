@@ -118,7 +118,7 @@ export async function POST(request: NextRequest) {
       id: `pi_${Math.random().toString(36).substr(2, 9)}`,
       client_secret: `pi_${Math.random().toString(36).substr(2, 9)}_secret_${Math.random().toString(36).substr(2, 9)}`,
       amount: booking.total_amount * 100, // в копейках для Stripe
-      currency: 'rub',
+      currency: 'mdl',
       status: 'requires_payment_method'
     };
 
@@ -308,7 +308,7 @@ export async function PATCH(request: NextRequest) {
         break;
       default:
         // Неизвестный тип события, просто логируем
-        console.log(`Unknown webhook event: ${event_type}`);
+        // Unknown webhook event
         return NextResponse.json({ message: 'Event received' });
     }
 

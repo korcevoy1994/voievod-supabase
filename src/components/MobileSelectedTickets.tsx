@@ -72,7 +72,7 @@ const MobileSelectedTickets: React.FC<MobileSelectedTicketsProps> = ({ selectedS
         
         setSeatsWithPrices(allSeats)
       } catch (error) {
-        console.error('Error fetching seat prices:', error)
+        // Error fetching seat prices
         // Fallback к старой логике с zonePrices
         const fallbackSeats = Object.entries(selectedSeats).flatMap(([zoneId, seatIds]) => {
           const zonePrice = zonePrices[zoneId] || 0

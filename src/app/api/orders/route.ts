@@ -237,8 +237,6 @@ export const POST = withPublicAccess(async (request: NextRequest) => {
 
     if (updateError) {
       logger.error('Ошибка обновления QR кода и PDF URL', updateError)
-    } else {
-
     }
 
     // Сохраняем места в заказе
@@ -336,23 +334,8 @@ export const POST = withPublicAccess(async (request: NextRequest) => {
       }
     }
 
-    // Обновляем статус мест на "sold" (если это места)
-    if (seats.length > 0) {
-      const seatIds = seats.map(seat => seat.id)
-      
-      const { error: updateError } = await supabase
-        .from('seats')
-        .update({ 
-          status: 'sold',
-          updated_at: new Date().toISOString() 
-        })
-        .in('id', seatIds)
-
-      if (updateError) {
-        logger.error('Ошибка обновления статуса мест', updateError)
-        // Не откатываем заказ, но логируем ошибку
-      }
-    }
+    // Места остаются в статусе 'available' до успешной оплаты
+    // Статус 'sold' будет установлен только после подтверждения платежа
 
     // Создаем билеты для заказа
     
@@ -504,8 +487,6 @@ export const POST = withPublicAccess(async (request: NextRequest) => {
 
         if (ticketsError) {
           logger.error('Ошибка создания билетов', ticketsError)
-        } else {
-
         }
       }
     } catch (ticketError) {

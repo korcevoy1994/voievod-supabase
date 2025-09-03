@@ -3,10 +3,12 @@
 import React, { useState, useEffect, Suspense } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { motion } from 'framer-motion'
+import { useCacheInvalidation } from '@/lib/hooks/useOptimizedData'
 
 const CheckoutFailPageContent: React.FC = () => {
   const router = useRouter()
   const searchParams = useSearchParams()
+  const { invalidateZoneData, invalidateEventData } = useCacheInvalidation()
   const [orderId, setOrderId] = useState<string | null>(null)
   const [paymentStatus, setPaymentStatus] = useState<'checking' | 'failed'>('checking')
   const [errorMessage, setErrorMessage] = useState<string>('')
@@ -38,10 +40,32 @@ const CheckoutFailPageContent: React.FC = () => {
         }
       }
       setPaymentStatus('failed')
+      
+      // Очищаем localStorage от данных о выбранных местах
+      localStorage.removeItem('checkout_data')
+        localStorage.removeItem('voevoda_reservations')
+        localStorage.removeItem('voevoda_supabase_selectedSeats')
+        localStorage.removeItem('voevoda_supabase_generalAccess')
+        localStorage.removeItem('voevoda_supabase_vipTickets')
+      
+      // Инвалидируем кеш для обновления статуса мест
+      invalidateZoneData()
+      invalidateEventData()
     } catch (error) {
-      console.error('Error checking payment status:', error)
+      // Error checking payment status
       setPaymentStatus('failed')
       setErrorMessage('Ошибка при проверке статуса платежа')
+      
+      // Очищаем localStorage от данных о выбранных местах
+      localStorage.removeItem('checkout_data')
+      localStorage.removeItem('voevoda_reservations')
+      localStorage.removeItem('voevoda_supabase_selectedSeats')
+      localStorage.removeItem('voevoda_supabase_generalAccess')
+      localStorage.removeItem('voevoda_supabase_vipTickets')
+      
+      // Инвалидируем кеш даже при ошибке
+      invalidateZoneData()
+      invalidateEventData()
     }
   }
 

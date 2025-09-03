@@ -146,7 +146,7 @@ export function useOptimizedZoneColors() {
 /**
  * Хук для получения мест зоны с оптимизированным кэшированием
  */
-export function useOptimizedZoneSeats(zoneId: string | null, eventId: string = '1') {
+export function useOptimizedZoneSeats(zoneId: string | null, eventId: string = '550e8400-e29b-41d4-a716-446655440000') {
   return useOptimizedData(
     `zone_seats_${zoneId}_${eventId}`,
     async () => {

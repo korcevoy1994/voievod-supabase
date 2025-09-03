@@ -39,7 +39,7 @@ export default function ZoneColorManager({ eventId, onColorUpdate }: ZoneColorMa
       setSelectedColor('#8525D9')
       setZoneName('')
     } catch (error) {
-      console.error('Failed to update zone color:', error)
+      // Failed to update zone color
     }
   }
 

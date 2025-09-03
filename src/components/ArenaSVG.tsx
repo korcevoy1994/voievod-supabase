@@ -1,25 +1,22 @@
 'use client'
-import React, { useState, useRef } from 'react'
+import React, { useState, useRef, memo, useMemo } from 'react'
 import { motion } from 'framer-motion'
 import { ZONE_DATA_MAP } from '@/lib/zoneData'
 
 interface ArenaSVGProps {
   onZoneClick: (zoneId: string) => void
   selectedSeats: Record<string, string[]>
-  onGeneralAccessClick?: () => void
   onVipZoneClick?: (vipZone: string) => void
   zonePrices?: Record<string, number>
-  generalAccessCount?: number
   zoneColors?: Record<string, string>
+  zoneStatus?: Record<string, boolean>
   vipZonesData?: any
   vipTickets?: Array<{ zone: string; [key: string]: any }>
 }
 
 const ZONE_SEAT_DATA = ZONE_DATA_MAP as Record<string, any[]>
 
-const GENERAL_ACCESS_MAX = 2000
-
-const ArenaSVG: React.FC<ArenaSVGProps> = ({ onZoneClick, selectedSeats, onGeneralAccessClick, onVipZoneClick, zonePrices = {}, generalAccessCount = 0, zoneColors = {}, vipZonesData, vipTickets = [] }) => {
+const ArenaSVG: React.FC<ArenaSVGProps> = ({ onZoneClick, selectedSeats, onVipZoneClick, zonePrices = {}, zoneColors = {}, zoneStatus = {}, vipZonesData, vipTickets = [] }) => {
   const [tooltip, setTooltip] = useState<null | { x: number; y: number; content: React.ReactNode }>(null)
   const [activeHoverZone, setActiveHoverZone] = useState<string | null>(null)
   const svgRef = useRef<SVGSVGElement>(null)
@@ -61,7 +58,11 @@ const ArenaSVG: React.FC<ArenaSVGProps> = ({ onZoneClick, selectedSeats, onGener
       '202': '#8525D9', '212': '#8525D9', '210': '#8525D9',
       '203': '#921792', '204': '#921792', '211': '#921792',
       '205': '#E7CB15', '209': '#E7CB15',
-      '206': '#EA3446', '207': '#EA3446', '208': '#EA3446'
+      '206': '#EA3446', '207': '#EA3446', '208': '#EA3446',
+      // Новые сектора
+      'A': '#ff6b35', // orange for Sector A
+      'B': '#4ecdc4', // teal for Sector B
+      'C': '#45b7d1'  // blue for Sector C
     }
     
     return staticColors[zoneId] || '#666666' // Серый цвет по умолчанию
@@ -71,6 +72,13 @@ const ArenaSVG: React.FC<ArenaSVGProps> = ({ onZoneClick, selectedSeats, onGener
   function getZoneInfo(zoneId: string) {
     const data = ZONE_SEAT_DATA[zoneId]
     if (!data) return { price: zonePrices[zoneId] || '-', free: '-' }
+    
+    // Проверяем, активна ли зона в базе данных
+    const isZoneActive = zoneStatus[zoneId] !== false // по умолчанию активна, если не указано иное
+    if (!isZoneActive) {
+      return { price: zonePrices[zoneId] || '-', free: 0, isBlocked: true }
+    }
+    
     const total = data.length
     const selected = (selectedSeats[zoneId] || []).length
     const unavailable = data.filter(s => s.status === 'unavailable').length
@@ -79,13 +87,7 @@ const ArenaSVG: React.FC<ArenaSVGProps> = ({ onZoneClick, selectedSeats, onGener
     return { price: zonePrices[zoneId] || '-', free, isBlocked: blocked === total }
   }
 
-  // Tooltip для General Access
-  function getGeneralAccessInfo() {
-    return {
-      price: zonePrices['gena'] || 500,
-      free: GENERAL_ACCESS_MAX - generalAccessCount
-    }
-  }
+
 
   // Tooltip render
   const renderTooltip = () => tooltip && (
@@ -147,28 +149,7 @@ const ArenaSVG: React.FC<ArenaSVGProps> = ({ onZoneClick, selectedSeats, onGener
     setActiveHoverZone(null)
     setTooltip(null)
   }
-  // Для General Access
-  function handleGeneralAccessHover(e: React.MouseEvent) {
-    if (!svgRef.current) return
-    setActiveHoverZone('gena')
-    const rect = svgRef.current.getBoundingClientRect()
-    const { price, free } = getGeneralAccessInfo()
-    setTooltip({
-      x: e.clientX - rect.left + 16,
-      y: e.clientY - rect.top - 38,
-      content: (
-        <>
-          <div style={{fontWeight:700, fontSize:18, marginBottom:4, letterSpacing:0.2}}>Acces General</div>
-          <div style={{marginBottom:2}}>Preț: <b>{price} Lei</b></div>
-          <div>Locuri libere: <b>{free}</b></div>
-        </>
-      )
-    })
-  }
-  function handleGeneralAccessLeave() {
-    setActiveHoverZone(null)
-    setTooltip(null)
-  }
+
 
   return (
     <div className="w-full h-full flex items-center justify-center relative p-2">
@@ -372,18 +353,49 @@ const ArenaSVG: React.FC<ArenaSVGProps> = ({ onZoneClick, selectedSeats, onGener
             <path d="M57.4 171.7H146.9C150.8 171.7 154 174.9 154 178.8V268.3C154 272.2 150.8 275.4 146.9 275.4H57.4C53.5 275.4 50.3 272.2 50.3 268.3V178.8C50.3 174.9 53.5 171.7 57.4 171.7Z" fill={getZoneColor('202')} />
             <text fill="white" style={{ whiteSpace: 'pre', fontFamily: 'var(--font-geist-sans)', fontSize: 24, fontWeight: 'bold', pointerEvents: 'none' }}><tspan x="79" y="232.227">202</tspan></text>
           </motion.g>
-          <motion.g id="gena" className="cursor-pointer"
-            animate={activeHoverZone === 'gena' ? { filter: 'brightness(1.18)', opacity: 0.97 } : { filter: 'none', opacity: 1 }}
+
+          {/* Новые сектора A, B, C */}
+          <motion.g id="Sector-A" className="cursor-pointer"
+            animate={activeHoverZone === 'A' ? { filter: 'brightness(1.18)', opacity: 0.97 } : { filter: 'none', opacity: 1 }}
             transition={{ type: 'tween', duration: 0.18 }}
-            onClick={() => onGeneralAccessClick?.()}
-            onMouseMove={handleGeneralAccessHover}
-            onMouseLeave={handleGeneralAccessLeave}
+            onClick={() => onZoneClick('A')}
+            onMouseMove={e => handleZoneHover(e, 'A')}
+            onMouseLeave={handleZoneLeave}
           >
-            <path d="M520.2 506.3H208.3C184.6 506.3 165.3 486.119 165.3 461.338V74.9791C165.3 68.9144 170 64 175.8 64H552.7C558.5 64 563.2 68.9144 563.2 74.9791V461.338C563.2 486.119 543.9 506.3 520.2 506.3Z" fill="#5BBFD6" />
-            <text fill="white" style={{ whiteSpace: 'pre', fontFamily: 'var(--font-geist-sans)', fontSize: 24, fontWeight: 'bold', pointerEvents: 'none' }}><tspan x="255" y="292.902">GENERAL ACCESS</tspan></text>
+            <path d="M164 268.255V400.491C164 420.761 190.682 428.171 201.135 410.805L281.782 276.822C286.358 269.22 285.379 259.513 279.377 252.978L225.601 194.429C215.867 183.831 198.461 186.673 192.603 199.817L165.732 260.114C164.59 262.676 164 265.45 164 268.255Z" fill={getZoneColor('A')} />
+            <text fill="white" style={{ whiteSpace: 'pre', fontFamily: 'var(--font-geist-sans)', fontSize: 20, fontWeight: 'bold', pointerEvents: 'none' }}><tspan x="175.072" y="282.273">SECTOR</tspan><tspan x="208.52" y="306.273">A</tspan></text>
           </motion.g>
-          {/* Статические элементы */}
-          <path d="M197.602 0H530.002C534.202 0 537.702 3.4 537.702 7.6V39.3C537.702 43.5 534.302 47 530.002 47H197.602C193.402 47 190.002 43.6 190.002 39.3V7.6C189.902 3.4 193.302 0 197.602 0Z" fill="#3B3B3B" />
+          <motion.g id="Sector-B" className="cursor-pointer"
+            animate={activeHoverZone === 'B' ? { filter: 'brightness(1.18)', opacity: 0.97 } : { filter: 'none', opacity: 1 }}
+            transition={{ type: 'tween', duration: 0.18 }}
+            onClick={() => onZoneClick('B')}
+            onMouseMove={e => handleZoneHover(e, 'B')}
+            onMouseLeave={handleZoneLeave}
+          >
+            <path d="M428.469 305C435.375 305 441.792 308.562 445.444 314.423L547.006 477.423C555.307 490.745 545.728 508 530.031 508H205.03C189.561 508 179.948 491.19 187.793 477.858L283.7 314.858C287.293 308.75 293.851 305 300.937 305H428.469Z" fill={getZoneColor('B')} />
+            <text fill="white" style={{ whiteSpace: 'pre', fontFamily: 'var(--font-geist-sans)', fontSize: 20, fontWeight: 'bold', pointerEvents: 'none' }}><tspan x="326.072" y="401.273">SECTOR</tspan><tspan x="360.389" y="425.273">B</tspan></text>
+          </motion.g>
+          <motion.g id="Sector-C" className="cursor-pointer"
+            animate={activeHoverZone === 'C' ? { filter: 'brightness(1.18)', opacity: 0.97 } : { filter: 'none', opacity: 1 }}
+            transition={{ type: 'tween', duration: 0.18 }}
+            onClick={() => onZoneClick('C')}
+            onMouseMove={e => handleZoneHover(e, 'C')}
+            onMouseLeave={handleZoneLeave}
+          >
+            <path d="M565.5 268.255V400.491C565.5 420.761 538.818 428.171 528.365 410.805L447.718 276.822C443.142 269.22 444.121 259.513 450.123 252.978L503.899 194.429C513.633 183.831 531.039 186.673 536.897 199.817L563.768 260.114C564.91 262.676 565.5 265.45 565.5 268.255Z" fill={getZoneColor('C')} />
+            <text fill="white" style={{ whiteSpace: 'pre', fontFamily: 'var(--font-geist-sans)', fontSize: 20, fontWeight: 'bold', pointerEvents: 'none' }}><tspan x="471.072" y="282.273">SECTOR</tspan><tspan x="504.48" y="306.273">C</tspan></text>
+          </motion.g>
+
+          {/* Статические элементы - обновленный дизайн сцены */}
+          <g id="Scena">
+            <g id="Vector_29">
+              <path d="M356.929 92.0711C360.834 88.1659 367.166 88.1659 371.071 92.0711L458.045 179.045C461.95 182.95 461.95 189.282 458.045 193.187L371.071 280.161C367.166 284.067 360.834 284.067 356.929 280.161L269.955 193.187C266.05 189.282 266.05 182.95 269.955 179.045L356.929 92.0711Z" fill="black"/>
+              <path d="M201.932 7.07111C205.838 3.16586 212.169 3.16586 216.074 7.0711L349.434 140.431C353.34 144.336 353.34 150.668 349.434 154.573L329.187 174.82C325.282 178.725 318.951 178.725 315.045 174.82L181.685 41.4601C177.78 37.5549 177.78 31.2232 181.685 27.318L201.932 7.07111Z" fill="black"/>
+              <path d="M519.599 7.07111C515.694 3.16586 509.362 3.16586 505.457 7.0711L376.071 136.457C372.166 140.362 372.166 146.694 376.071 150.599L396.318 170.846C400.223 174.751 406.555 174.751 410.46 170.846L539.846 41.4601C543.751 37.5549 543.751 31.2232 539.846 27.318L519.599 7.07111Z" fill="black"/>
+              <path d="M565 10C565 4.47719 560.523 3.37909e-05 555 3.33081e-05L174 0C168.477 -4.82822e-07 164 4.47715 164 10L164 54C164 59.5229 168.477 64 174 64L555 64.0001C560.523 64.0001 565 59.5229 565 54.0001V10Z" fill="black"/>
+            </g>
+            <text id="scena" fill="white" style={{ whiteSpace: 'pre', fontFamily: 'var(--font-geist-sans)', fontSize: 18, fontWeight: 'bold', pointerEvents: 'none' }}><tspan x="335.474" y="189.545">SCENA</tspan></text>
+          </g>
           <path d="M398.4 624L330.5 624.2C326.3 624.2 323 627.6 323 631.7V662.9C323 667.1 326.4 670.5 330.6 670.4C345.2 670.3 377.6 670.2 398.5 670.2C402.7 670.2 406 666.8 406 662.7V631.6C406 627.4 402.6 624 398.4 624Z" fill="#3B3B3B" />
         </g>
         <defs>
@@ -396,4 +408,4 @@ const ArenaSVG: React.FC<ArenaSVGProps> = ({ onZoneClick, selectedSeats, onGener
   )
 }
 
-export default ArenaSVG
+export default memo(ArenaSVG)

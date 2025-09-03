@@ -207,7 +207,7 @@ export async function POST(request: NextRequest) {
     });
     
   } catch (error) {
-    logger.error('Error processing refund', error);
+    // Error processing refund
     return NextResponse.json(
       { error: 'Internal server error' },
       { status: 500 }

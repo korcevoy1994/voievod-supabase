@@ -66,16 +66,14 @@ export async function POST(
         console.log('Order total_price:', order.total_price, 'type:', typeof order.total_price);
         
         // Создаем платеж через MAIB
-        const callbackUrl = `${process.env.NEXT_PUBLIC_APP_URL}/api/payments/maib/callback`;
         const baseUrl = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000';
+        const callbackUrl = `${baseUrl}/api/payments/maib/callback`;
         const successUrl = `${baseUrl}/checkout/success?orderId=${orderId}`;
         const failUrl = `${baseUrl}/checkout/fail?orderId=${orderId}`;
         
         // Убеждаемся, что amount является числом
         const amount = typeof order.total_price === 'string' ? 
           parseFloat(order.total_price) : order.total_price;
-        
-        console.log('Final amount for MAIB:', amount, 'type:', typeof amount);
         
         const maibPayment = await maibClient.createPayment({
            amount: amount,

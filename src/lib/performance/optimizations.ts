@@ -4,14 +4,14 @@ import { memo, lazy, ComponentType, LazyExoticComponent, createElement } from 'r
 const logger = {
   dev: (message: string, ...args: any[]) => {
     if (process.env.NODE_ENV === 'development') {
-      console.log(`[DEV] ${message}`, ...args)
+      // [DEV] logging disabled
     }
   },
   warn: (message: string, ...args: any[]) => {
-    console.warn(`[WARN] ${message}`, ...args)
+    // [WARN] logging disabled
   },
   error: (message: string, ...args: any[]) => {
-    console.error(`[ERROR] ${message}`, ...args)
+    // [ERROR] logging disabled
   }
 }
 

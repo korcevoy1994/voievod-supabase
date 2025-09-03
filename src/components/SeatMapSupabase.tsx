@@ -53,7 +53,7 @@ interface SeatMapSupabaseProps {
 }
 
 const SeatMapSupabase = forwardRef<ReactZoomPanPinchRef, SeatMapSupabaseProps>(
-  ({ zoneId, selectedSeats, onSeatClick, eventId = 'voevoda' }, ref) => {
+  ({ zoneId, selectedSeats, onSeatClick, eventId = '550e8400-e29b-41d4-a716-446655440000' }, ref) => {
     const { data: seats, loading, error } = useOptimizedZoneSeats(zoneId, eventId)
     const containerRef = useRef<HTMLDivElement>(null)
     const [tooltip, setTooltip] = useState<{ x: number; y: number; content: string } | null>(null)
@@ -65,9 +65,17 @@ const SeatMapSupabase = forwardRef<ReactZoomPanPinchRef, SeatMapSupabaseProps>(
         return svgCache.get(zoneId)!
       }
 
-      const response = await fetch(`/${zoneId}.svg`)
+      // Определяем правильное имя файла SVG
+      let svgFileName: string
+      if (['A', 'B', 'C'].includes(zoneId)) {
+        svgFileName = `Sector ${zoneId}.svg`
+      } else {
+        svgFileName = `${zoneId}.svg`
+      }
+
+      const response = await fetch(`/${svgFileName}`)
       if (!response.ok) {
-        throw new Error(`Failed to load SVG for zone ${zoneId}`)
+        throw new Error(`Failed to load SVG for zone ${zoneId} (${svgFileName})`)
       }
       
       const svgContent = await response.text()
@@ -80,11 +88,20 @@ const SeatMapSupabase = forwardRef<ReactZoomPanPinchRef, SeatMapSupabaseProps>(
       const map = new Map<string, SeatData>()
       const seatsArray = seats?.seats || seats
       if (Array.isArray(seatsArray)) {
-        seatsArray.forEach((seat: SeatData) => {
-          // Используем row и number напрямую из данных API
-          const svgSeatId = `${seat.row} - ${seat.number.padStart(2, '0')}`
+        // Processing seats for zone
+        seatsArray.forEach((seat: SeatData, index) => {
+          // Для зон A,B,C номера приходят как "1", "2", нужно добавить ведущий ноль
+          // Для зон 201-212 номера уже приходят как "01", "02"
+          const paddedNumber = seat.number.length === 1 ? seat.number.padStart(2, '0') : seat.number
+          const svgSeatId = `${seat.row} - ${paddedNumber}`
           map.set(svgSeatId, seat)
+          if (index < 3) {
+            // Processing seat
+          }
         })
+        // Created seat map
+      } else {
+        // No seats array found
       }
       return map
     }, [seats, zoneId, eventId])
@@ -122,13 +139,24 @@ const SeatMapSupabase = forwardRef<ReactZoomPanPinchRef, SeatMapSupabaseProps>(
           
           // Батчинг обработки мест
           const seatUpdates: Array<() => void> = []
+          let foundCount = 0
+          let notFoundCount = 0
           
           seatsMap.forEach((seat, svgSeatId) => {
             const seatElement = svg.querySelector(`[id='${svgSeatId}']`) as SVGElement
             
             if (!seatElement) {
+              notFoundCount++
+              if (notFoundCount <= 3) {
+                // Seat element not found
+              }
               logger.warn(`Seat element not found for ID: ${svgSeatId}`)
               return
+            }
+            
+            foundCount++
+            if (foundCount <= 3) {
+              // Seat element found
             }
 
             const isSelected = selectedSeats.includes(seat.id)
@@ -251,6 +279,8 @@ const SeatMapSupabase = forwardRef<ReactZoomPanPinchRef, SeatMapSupabaseProps>(
             }
           })
 
+          // Processing complete
+
           // Выполняем все обновления стилей батчем
           domBatcher.add(() => {
             seatUpdates.forEach(update => update())
@@ -268,7 +298,7 @@ const SeatMapSupabase = forwardRef<ReactZoomPanPinchRef, SeatMapSupabaseProps>(
     if (loading) {
       return (
         <div className="flex items-center justify-center h-full">
-          <div className="text-white text-lg">Загрузка мест...</div>
+          <div className="text-white text-lg">Încărcare locuri...</div>
         </div>
       )
     }

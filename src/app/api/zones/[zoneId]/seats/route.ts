@@ -9,6 +9,8 @@ export async function GET(
   try {
     const supabase = createSupabaseServerClient();
     const { zoneId } = await params
+    const { searchParams } = new URL(request.url)
+    const eventId = searchParams.get('eventId') || '550e8400-e29b-41d4-a716-446655440000'
     
     // Оптимизированный запрос: получаем места и цвет зоны одним запросом
     const [seatsResult, colorResult] = await Promise.all([
@@ -26,6 +28,7 @@ export async function GET(
           custom_price
         `)
         .eq('zone', zoneId)
+        .eq('event_id', eventId)
         .order('row')
         .order('number'),
       supabase
@@ -43,16 +46,22 @@ export async function GET(
     // Получаем цвет зоны из результата запроса
     const zoneColor = colorResult.data?.color || '#8525D9'
     
+    // Получаем цену из zone_pricing для зоны
+    const { data: zonePricing } = await supabase
+      .from('zone_pricing')
+      .select('price')
+      .eq('event_id', eventId)
+      .eq('zone', zoneId)
+      .single()
+    
+    const zonePriceFromPricing = zonePricing?.price || 0
+    
     // Преобразуем данные в формат, совместимый с фронтендом
     const formattedSeats = seatsResult.data?.map((seat: any) => {
       // Правильная логика приоритета цен:
       // 1. Если custom_price = true, используем seat.price
-      // 2. Иначе вычисляем цену через calculate_seat_price
-      const finalPrice = seat.price || 0;
-      
-      // Если у места нет custom_price или custom_price = false,
-      // цена должна быть уже правильно рассчитана триггерами
-      // Но для надежности можем добавить дополнительную проверку
+      // 2. Иначе используем цену из zone_pricing
+      const finalPrice = seat.custom_price === true ? seat.price : zonePriceFromPricing
       
       return {
         id: seat.id, // Используем реальный ID из базы данных

@@ -3,6 +3,7 @@
 import React, { useState, useEffect, Suspense } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { motion } from 'framer-motion'
+import { useCacheInvalidation } from '@/lib/hooks/useOptimizedData'
 
 const CheckoutSuccessPageContent: React.FC = () => {
   const router = useRouter()
@@ -12,6 +13,7 @@ const CheckoutSuccessPageContent: React.FC = () => {
   const [downloadingPdf, setDownloadingPdf] = useState(false)
   const [sendingEmail, setSendingEmail] = useState(false)
   const [paymentStatus, setPaymentStatus] = useState<'checking' | 'success' | 'failed'>('checking')
+  const { invalidateZoneData, invalidateEventData } = useCacheInvalidation()
 
   const fetchOrderDetails = async (orderIdToFetch: string) => {
     try {
@@ -23,7 +25,7 @@ const CheckoutSuccessPageContent: React.FC = () => {
         }
       }
     } catch (error) {
-      console.error('Error fetching order details:', error)
+      // Error fetching order details
     }
   }
 
@@ -51,6 +53,11 @@ const CheckoutSuccessPageContent: React.FC = () => {
       localStorage.removeItem('voevoda_reservations')
       localStorage.removeItem('voevoda_supabase_selectedSeats')
       localStorage.removeItem('voevoda_supabase_generalAccess')
+      localStorage.removeItem('voevoda_supabase_vipTickets')
+      
+      // Инвалидируем кэш для обновления статуса мест
+      invalidateZoneData()
+      invalidateEventData('550e8400-e29b-41d4-a716-446655440000')
     } else {
       // Получаем ID последнего заказа из localStorage (обычный flow)
       const lastOrderId = localStorage.getItem('last_order_id')
@@ -66,6 +73,16 @@ const CheckoutSuccessPageContent: React.FC = () => {
         // Очищаем ID заказа после получения
         localStorage.removeItem('last_order_id')
         localStorage.removeItem('last_order_number')
+        // Очищаем данные корзины после успешной оплаты
+        localStorage.removeItem('checkout_data')
+        localStorage.removeItem('voevoda_reservations')
+        localStorage.removeItem('voevoda_supabase_selectedSeats')
+        localStorage.removeItem('voevoda_supabase_generalAccess')
+        localStorage.removeItem('voevoda_supabase_vipTickets')
+        
+        // Инвалидируем кэш для обновления статуса мест
+        invalidateZoneData()
+        invalidateEventData('550e8400-e29b-41d4-a716-446655440000')
       }
     }
   }, [searchParams])
@@ -88,7 +105,7 @@ const CheckoutSuccessPageContent: React.FC = () => {
         return
       }
     } catch (error) {
-      console.error('Error checking payment status:', error)
+      // Error checking payment status
       // Если ошибка сети, перенаправляем на fail страницу
       router.push(`/checkout/fail?orderId=${orderIdToCheck}`)
       return
@@ -103,7 +120,7 @@ const CheckoutSuccessPageContent: React.FC = () => {
     
     setDownloadingPdf(true)
     try {
-      console.log('Скачивание PDF для заказа:', orderId)
+      // Скачивание PDF для заказа
       const response = await fetch(`/api/tickets/pdf?orderId=${orderId}`)
       
       if (!response.ok) {
@@ -128,9 +145,9 @@ const CheckoutSuccessPageContent: React.FC = () => {
       window.URL.revokeObjectURL(url)
       document.body.removeChild(a)
       
-      console.log('PDF успешно скачан')
+      // PDF успешно скачан
     } catch (error) {
-      console.error('Ошибка скачивания PDF:', error)
+      // Ошибка скачивания PDF
       const errorMessage = error instanceof Error ? error.message : 'Неизвестная ошибка'
       alert(`Ошибка при скачивании билета: ${errorMessage}. Попробуйте позже или обратитесь в поддержку.`)
     } finally {
@@ -146,7 +163,7 @@ const CheckoutSuccessPageContent: React.FC = () => {
     
     setSendingEmail(true)
     try {
-      console.log('Отправка PDF билета по email для заказа:', orderId)
+      // Отправка PDF билета по email для заказа
       const response = await fetch('/api/tickets/email', {
         method: 'POST',
         headers: {
@@ -167,11 +184,11 @@ const CheckoutSuccessPageContent: React.FC = () => {
       }
       
       const result = await response.json()
-      console.log('Email отправлен успешно:', result)
+      // Email отправлен успешно
       
       alert(`Biletele au fost trimise pe email cu succes!\n\nPentru testare, poți vedea email-ul aici:\n${result.previewUrl || 'Email trimis'}`)
     } catch (error) {
-      console.error('Ошибка отправки email:', error)
+      // Ошибка отправки email
       const errorMessage = error instanceof Error ? error.message : 'Неизвестная ошибка'
       alert(`Ошибка при отправке билета на email: ${errorMessage}. Попробуйте позже или обратитесь в поддержку.`)
     } finally {

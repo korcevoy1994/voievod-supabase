@@ -41,7 +41,7 @@ export async function getZones(): Promise<ZoneTemplate[]> {
     zonesCache = data.zones
     return data.zones
   } catch (error) {
-    console.error('Error fetching zones:', error)
+    // Error fetching zones
     return []
   }
 }
@@ -61,7 +61,7 @@ export async function getZoneSeats(zoneId: string): Promise<SeatData[]> {
     seatsCache.set(zoneId, data.seats)
     return data.seats
   } catch (error) {
-    console.error(`Error fetching seats for zone ${zoneId}:`, error)
+    // Error fetching seats for zone
     return []
   }
 }
@@ -81,7 +81,7 @@ export async function getEventPricing(eventId: string): Promise<Record<string, n
     pricingCache.set(eventId, data.zonePrices)
     return data.zonePrices
   } catch (error) {
-    console.error(`Error fetching pricing for event ${eventId}:`, error)
+    // Error fetching pricing for event
     return {}
   }
 }
@@ -141,6 +141,9 @@ export function getZoneColor(zoneId: string): string {
     '211': '#921792', // indigo-500
     '212': '#8526d9', // lime-500
     '213': '#179240', // rose-500
+    'A': '#ff6b35', // orange for Sector A
+    'B': '#4ecdc4', // teal for Sector B
+    'C': '#45b7d1', // blue for Sector C
   }
   
   return zoneColors[zoneId] || '#6b7280' // gray-500 as fallback
@@ -166,9 +169,9 @@ export async function preloadEventData(eventId: string) {
     const seatPromises = zones.map(zone => getZoneSeats(zone.zone_id))
     await Promise.all(seatPromises)
     
-    console.log(`Preloaded data for event ${eventId}: ${zones.length} zones`)
+    // Preloaded data for event
   } catch (error) {
-    console.error(`Error preloading data for event ${eventId}:`, error)
+    // Error preloading data for event
   }
 }
 

@@ -248,7 +248,7 @@ class SecureSessionManager {
         return data.sessionId
       }
     } catch (error) {
-      console.warn('Ошибка чтения сессии из localStorage:', error)
+      // Ошибка чтения сессии из localStorage
     }
 
     return null
@@ -278,7 +278,7 @@ class SecureSessionManager {
         localStorage.setItem(this.FINGERPRINT_KEY, session.fingerprint)
       }
     } catch (error) {
-      console.warn('Ошибка сохранения сессии в localStorage:', error)
+      // Ошибка сохранения сессии в localStorage
     }
   }
 
@@ -307,7 +307,7 @@ class SecureSessionManager {
         this.sessions.set(session.id, session)
       }
     } catch (error) {
-      console.warn('Ошибка загрузки сессии из localStorage:', error)
+      // Ошибка загрузки сессии из localStorage
       this.clearAllSessions()
     }
   }
@@ -330,7 +330,7 @@ class SecureSessionManager {
         }
       }
     } catch (error) {
-      console.warn('Ошибка удаления сессии из localStorage:', error)
+      // Ошибка удаления сессии из localStorage
     }
   }
 
@@ -347,6 +347,7 @@ class SecureSessionManager {
       localStorage.removeItem('checkout_data')
       localStorage.removeItem('voevoda_supabase_selectedSeats')
       localStorage.removeItem('voevoda_supabase_generalAccess')
+      localStorage.removeItem('voevoda_supabase_vipTickets')
     }
   }
 

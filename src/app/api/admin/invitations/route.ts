@@ -310,7 +310,7 @@ export async function POST(request: NextRequest) {
     })
 
   } catch (error) {
-    console.error('Error in invitation creation:', error)
+    // Error in invitation creation
     return NextResponse.json(
       { error: 'Внутренняя ошибка сервера' },
       { status: 500 }

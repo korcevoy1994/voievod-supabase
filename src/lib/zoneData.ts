@@ -14,6 +14,9 @@ export { zone210SeatData } from '@/data/zone-210-seats'
 export { zone211SeatData } from '@/data/zone-211-seats'
 export { zone212SeatData } from '@/data/zone-212-seats'
 export { zone213SeatData } from '@/data/zone-213-seats'
+export { zoneSectorASeatData } from '@/data/zone-sector-a-seats'
+export { zoneSectorBSeatData } from '@/data/zone-sector-b-seats'
+export { zoneSectorCSeatData } from '@/data/zone-sector-c-seats'
 
 import { zone201SeatData } from '@/data/zone-201-seats'
 import { zone202SeatData } from '@/data/zone-202-seats'
@@ -28,6 +31,9 @@ import { zone210SeatData } from '@/data/zone-210-seats'
 import { zone211SeatData } from '@/data/zone-211-seats'
 import { zone212SeatData } from '@/data/zone-212-seats'
 import { zone213SeatData } from '@/data/zone-213-seats'
+import { zoneSectorASeatData } from '@/data/zone-sector-a-seats'
+import { zoneSectorBSeatData } from '@/data/zone-sector-b-seats'
+import { zoneSectorCSeatData } from '@/data/zone-sector-c-seats'
 
 // Создаем lookup объект для быстрого доступа к данным зон
 export const ZONE_DATA_MAP = {
@@ -44,6 +50,9 @@ export const ZONE_DATA_MAP = {
   '211': zone211SeatData,
   '212': zone212SeatData,
   '213': zone213SeatData,
+  'A': zoneSectorASeatData,
+  'B': zoneSectorBSeatData,
+  'C': zoneSectorCSeatData,
 } as const
 
 // Функция для получения данных зоны (заменяет длинную цепочку условий)
@@ -60,4 +69,4 @@ export const seatLookup = Object.values(ZONE_DATA_MAP)
       return lookup
     },
     {} as Record<string, { row: string; number: string }>,
-  ) 
+  )

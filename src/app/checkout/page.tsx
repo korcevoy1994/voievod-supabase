@@ -6,6 +6,7 @@ import { motion } from 'framer-motion'
 import { getOrCreateSessionUserId, createTempUserData } from '@/lib/userSession'
 import { SecureSessionManager } from '@/lib/secureSessionManager'
 import { apiClient } from '@/lib/apiClient'
+import { useCacheInvalidation } from '@/lib/hooks/useOptimizedData'
 
 
 interface CheckoutSeat {
@@ -53,6 +54,7 @@ const CheckoutPageContent: React.FC = () => {
   const [paymentProvider, setPaymentProvider] = useState('maib')
   const [isProcessing, setIsProcessing] = useState(false)
   const [agreeToTerms, setAgreeToTerms] = useState(false)
+  const { invalidateZoneData, invalidateEventData } = useCacheInvalidation()
   
 
 
@@ -69,7 +71,7 @@ const CheckoutPageContent: React.FC = () => {
           router.push('/tickets')
         }
       } catch (error) {
-        console.error('Ошибка загрузки данных checkout:', error)
+        // Ошибка загрузки данных checkout
         router.push('/tickets')
       } finally {
         setLoading(false)
@@ -100,17 +102,17 @@ const CheckoutPageContent: React.FC = () => {
       const sessionManager = new SecureSessionManager()
       const sessionResult = sessionManager.getOrCreateSession()
       
-      console.log('Session result:', sessionResult)
+      // Session result
       
       if (!sessionResult || !sessionResult.sessionId || !sessionResult.userId) {
-        console.error('Ошибка создания сессии:', sessionResult)
+        // Ошибка создания сессии
         throw new Error('Отсутствует ID сессии')
       }
       
       // Дополнительная проверка, что сессия сохранилась
       const currentSessionId = sessionManager.getCurrentSessionId()
       if (!currentSessionId) {
-        console.error('Сессия не была сохранена в localStorage')
+        // Сессия не была сохранена в localStorage
         throw new Error('Ошибка сохранения сессии')
       }
       
@@ -144,11 +146,11 @@ const CheckoutPageContent: React.FC = () => {
           email: customerInfo.email,
           phone: customerInfo.phone
         },
-        seats: checkoutData.seats,
-        generalAccess: checkoutData.generalAccess,
+        seats: checkoutData.seats || [],
+        generalAccess: checkoutData.generalAccess || [],
         vipTickets: checkoutData.vipTickets || [],
-        totalPrice: checkoutData.totalPrice,
-        totalTickets: checkoutData.totalTickets,
+        totalPrice: checkoutData.totalPrice || 0,
+        totalTickets: checkoutData.totalTickets || 0,
         paymentMethod: paymentMethod
       }, {
         'x-session-id': sessionId,
@@ -160,7 +162,7 @@ const CheckoutPageContent: React.FC = () => {
       }
 
       const orderResult = await orderResponse.json()
-      console.log('Заказ успешно создан:', orderResult.orderId)
+      // Заказ успешно создан
       
       // Если выбран MAIB, инициируем платеж
       if (paymentProvider === 'maib' && paymentMethod === 'card') {
@@ -200,14 +202,19 @@ const CheckoutPageContent: React.FC = () => {
       
       // Очищаем данные корзины после успешной покупки
       localStorage.removeItem('checkout_data')
-      localStorage.removeItem('voevoda_reservations')
-      localStorage.removeItem('voevoda_supabase_selectedSeats')
-      localStorage.removeItem('voevoda_supabase_generalAccess')
+        localStorage.removeItem('voevoda_reservations')
+        localStorage.removeItem('voevoda_supabase_selectedSeats')
+        localStorage.removeItem('voevoda_supabase_generalAccess')
+        localStorage.removeItem('voevoda_supabase_vipTickets')
+      
+      // Инвалидируем кэш для обновления статуса мест
+      invalidateZoneData()
+      invalidateEventData('550e8400-e29b-41d4-a716-446655440000')
       
       // Перенаправляем на страницу успеха
       router.push('/checkout/success')
     } catch (error) {
-      console.error('Ошибка обработки платежа:', error)
+      // Ошибка обработки платежа
       // Показываем пользователю детальную ошибку
       alert(`Ошибка: ${error instanceof Error ? error.message : 'Неизвестная ошибка'}`)
     } finally {
@@ -245,7 +252,7 @@ const CheckoutPageContent: React.FC = () => {
           <div className="flex items-center gap-4 mb-8">
             <button
               onClick={() => {
-                console.log('🔙 Возврат на страницу билетов из checkout')
+                // Возврат на страницу билетов из checkout
                 // НЕ удаляем checkout_data при возврате, чтобы данные сохранились
                 router.push('/tickets')
               }}
@@ -379,7 +386,7 @@ const CheckoutPageContent: React.FC = () => {
                   disabled={!isFormValid || isProcessing}
                   className="w-full bg-blue-600 hover:bg-blue-700 disabled:bg-gray-600 disabled:cursor-not-allowed text-white font-bold py-3 px-4 rounded-lg transition-colors mt-6 cursor-pointer"
                 >
-                  {isProcessing ? 'Se procesează...' : `Plătește ${checkoutData.totalPrice} Lei`}
+                  {isProcessing ? 'Se procesează...' : `Plătește ${checkoutData.totalPrice || 0} Lei`}
                 </button>
               </form>
             </motion.div>
@@ -395,7 +402,7 @@ const CheckoutPageContent: React.FC = () => {
               
               <div className="space-y-4">
                 {/* Locuri selectate */}
-                {checkoutData.seats.map((seat) => (
+                {checkoutData.seats?.map((seat) => (
                   <div key={seat.id} className="flex justify-between items-center py-2 border-b border-gray-700">
                     <div>
                       <div className="text-white font-medium">Zona {seat.zone}</div>
@@ -406,7 +413,7 @@ const CheckoutPageContent: React.FC = () => {
                 ))}
                 
                 {/* Bilete General Access */}
-                {checkoutData.generalAccess.map((ticket) => (
+                {checkoutData.generalAccess?.map((ticket) => (
                   <div key={ticket.id} className="flex justify-between items-center py-2 border-b border-gray-700">
                     <div>
                       <div className="text-white font-medium">{ticket.name}</div>
@@ -420,9 +427,9 @@ const CheckoutPageContent: React.FC = () => {
                 <div className="pt-4 border-t border-gray-600">
                   <div className="flex justify-between items-center">
                     <div className="text-white font-bold text-lg">
-                      Total ({checkoutData.totalTickets} bilet{checkoutData.totalTickets > 1 ? 'e' : ''})
+                      Total ({checkoutData.totalTickets || 0} bilet{(checkoutData.totalTickets || 0) > 1 ? 'e' : ''})
                     </div>
-                    <div className="text-green-400 font-bold text-xl">{checkoutData.totalPrice} Lei</div>
+                    <div className="text-green-400 font-bold text-xl">{checkoutData.totalPrice || 0} Lei</div>
                   </div>
                 </div>
               </div>

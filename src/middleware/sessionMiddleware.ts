@@ -86,7 +86,7 @@ export function withSessionValidation(
       return response
 
     } catch (error) {
-      console.error('Ошибка в session middleware:', error)
+      // Ошибка в session middleware
       return NextResponse.json(
         { error: 'Внутренняя ошибка сервера' },
         { status: 500 }
