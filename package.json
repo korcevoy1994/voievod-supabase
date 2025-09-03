@@ -19,6 +19,7 @@
     "@types/nodemailer": "^6.4.17",
     "@types/uuid": "^10.0.0",
     "clsx": "^2.1.1",
+    "critters": "^0.0.23",
     "dotenv": "^17.2.1",
     "framer-motion": "^12.23.9",
     "html2canvas": "^1.4.1",
