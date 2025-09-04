@@ -1,7 +1,7 @@
 {
-  "name": "VOIEVOD - Rock operă coregrafică",
-  "short_name": "VOIEVOD",
-  "description": "Cumpără bilete pentru spectacolul VOIEVOD - Rock operă coregrafică",
+  "name": "Voievod - Rock operă coregrafică",
+  "short_name": "Voievod",
+  "description": "Cumpără bilete pentru spectacolul Voievod - Rock operă coregrafică",
   "start_url": "/",
   "display": "standalone",
   "background_color": "#000000",
@@ -36,7 +36,7 @@
       "sizes": "1280x720",
       "type": "image/jpeg",
       "platform": "wide",
-      "label": "VOIEVOD - Pagina principală"
+      "label": "Voievod - Pagina principală"
     }
   ]
 }

@@ -324,21 +324,21 @@ export async function POST(request: NextRequest) {
     const mailOptions = {
       from: `"${process.env.EMAIL_FROM_NAME}" <${process.env.EMAIL_FROM_ADDRESS}>`,
       to: order.customer_email,
-      subject: `Biletele tale VOEVODA - Comanda #${orderId.slice(0, 8)}`,
+      subject: `Biletele tale Voievod - Comanda #${orderId.slice(0, 8)}`,
       html: `
         <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
-          <h1 style="color: #1f2937; text-align: center;">VOEVODA</h1>
+          <h1 style="color: #1f2937; text-align: center;">Voievod</h1>
           <h2 style="color: #374151;">Mulțumim pentru cumpărare!</h2>
           
           <p>Bună ${order.customer_first_name},</p>
           
-          <p>Biletele tale pentru evenimentul VOEVODA sunt atașate la acest email. Fiecare bilet este într-un fișier PDF separat.</p>
+          <p>Biletele tale pentru evenimentul Voievod sunt atașate la acest email. Fiecare bilet este într-un fișier PDF separat.</p>
           
           <div style="background-color: #f3f4f6; padding: 20px; border-radius: 8px; margin: 20px 0;">
             <h3 style="margin-top: 0; color: #374151;">Detalii comandă:</h3>
             <p><strong>Numărul comenzii:</strong> ${orderId}</p>
-            <p><strong>Data evenimentului:</strong> 15 Februarie 2025, 19:00</p>
-            <p><strong>Locația:</strong> Sala Polivalentă, Chișinău</p>
+            <p><strong>Data evenimentului:</strong> 14 Decembrie 2025, 19:00</p>
+            <p><strong>Locația:</strong> Arena Chisinau</p>
             <p><strong>Total bilete:</strong> ${order.total_tickets}</p>
             <p><strong>Total plătit:</strong> ${order.total_price} Lei</p>
             <p><strong>Fișiere atașate:</strong> ${ticketPDFs.length} bilete PDF</p>

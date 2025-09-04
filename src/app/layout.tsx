@@ -8,12 +8,12 @@ import WebVitals from '@/components/WebVitals'
 const inter = Inter({ subsets: ['latin'] })
 
 export const metadata: Metadata = {
-  title: 'VOIEVOD - Rock operă coregrafică | Bilete online',
-  description: 'Cumpără bilete pentru spectacolul VOIEVOD - Rock operă coregrafică cu Lupii lui Calancea, Baletul Național "Joc", Guz și Surorile Osoianu. 14 decembrie 2025, Arena Chișinău.',
-  keywords: 'VOIEVOD, rock operă, bilete, Arena Chișinău, Lupii lui Calancea, Baletul Național Joc, Guz, Surorile Osoianu, spectacol, Moldova',
-  authors: [{ name: 'VOIEVOD Production' }],
-  creator: 'VOIEVOD Production',
-  publisher: 'VOIEVOD Production',
+  title: 'Voievod - Rock operă coregrafică | Bilete online',
+  description: 'Cumpără bilete pentru spectacolul Voievod - Rock operă coregrafică cu Lupii lui Calancea, Baletul Național "Joc", Guz și Surorile Osoianu. 14 Decembrie 2025, Arena Chisinau.',
+  keywords: 'Voievod, rock operă, bilete, Arena Chisinau, Lupii lui Calancea, Baletul Național Joc, Guz, Surorile Osoianu, spectacol, Moldova',
+  authors: [{ name: 'Voievod Production' }],
+  creator: 'Voievod Production',
+  publisher: 'Voievod Production',
   manifest: '/manifest.json',
   robots: 'index, follow',
   alternates: {
@@ -23,21 +23,21 @@ export const metadata: Metadata = {
     type: 'website',
     locale: 'ro_RO',
     url: 'https://voievod.md',
-    siteName: 'VOIEVOD',
-    title: 'VOIEVOD - Rock operă coregrafică | Bilete online',
-    description: 'Cumpără bilete pentru spectacolul VOIEVOD - Rock operă coregrafică cu Lupii lui Calancea, Baletul Național "Joc", Guz și Surorile Osoianu. 14 decembrie 2025, Arena Chișinău.',
+    siteName: 'Voievod',
+    title: 'Voievod - Rock operă coregrafică | Bilete online',
+    description: 'Cumpără bilete pentru spectacolul Voievod - Rock operă coregrafică cu Lupii lui Calancea, Baletul Național "Joc", Guz și Surorile Osoianu. 14 Decembrie 2025, Arena Chisinau.',
     images: [
       {
         url: '/bg-desc-min.jpg',
         width: 1200,
         height: 630,
-        alt: 'VOIEVOD - Rock operă coregrafică'
+        alt: 'Voievod - Rock operă coregrafică'
       },
       {
         url: '/text.png',
         width: 800,
         height: 400,
-        alt: 'VOIEVOD Logo'
+        alt: 'Voievod Logo'
       }
     ]
   },
@@ -45,8 +45,8 @@ export const metadata: Metadata = {
     card: 'summary_large_image',
     site: '@voievod_md',
     creator: '@voievod_md',
-    title: 'VOIEVOD - Rock operă coregrafică | Bilete online',
-    description: 'Cumpără bilete pentru spectacolul VOIEVOD - Rock operă coregrafică. 14 decembrie 2025, Arena Chișinău.',
+    title: 'Voievod - Rock operă coregrafică | Bilete online',
+    description: 'Cumpără bilete pentru spectacolul Voievod - Rock operă coregrafică. 14 Decembrie 2025, Arena Chisinau.',
     images: ['/bg-desc-min.jpg']
   },
   icons: {
@@ -57,7 +57,7 @@ export const metadata: Metadata = {
   other: {
     'event:start_time': '2025-12-14T19:00:00+02:00',
     'event:end_time': '2025-12-14T22:00:00+02:00',
-    'event:location': 'Arena Chișinău, Moldova',
+    'event:location': 'Arena Chisinau, Moldova',
     'event:price_range': '200-1500 MDL'
   }
 }
@@ -99,7 +99,7 @@ export default function RootLayout({
             __html: JSON.stringify({
               "@context": "https://schema.org",
               "@type": "Event",
-              "name": "VOIEVOD - Rock operă coregrafică",
+              "name": "Voievod - Rock operă coregrafică",
               "description": "Spectacol de rock operă coregrafică cu Lupii lui Calancea, Baletul Național Joc, Guz și Surorile Osoianu",
               "startDate": "2025-12-14T19:00:00+02:00",
               "endDate": "2025-12-14T22:00:00+02:00",
@@ -107,7 +107,7 @@ export default function RootLayout({
               "eventAttendanceMode": "https://schema.org/OfflineEventAttendanceMode",
               "location": {
                 "@type": "Place",
-                "name": "Arena Chișinău",
+                "name": "Arena Chisinau",
                 "address": {
                   "@type": "PostalAddress",
                   "addressLocality": "Chișinău",
@@ -120,7 +120,7 @@ export default function RootLayout({
               ],
               "organizer": {
                 "@type": "Organization",
-                "name": "VOIEVOD Production",
+                "name": "Voievod Production",
                 "url": "https://voievod.md"
               },
               "offers": {
@@ -165,7 +165,7 @@ export default function RootLayout({
             <div className="flex flex-col md:flex-row items-center justify-between space-y-4 md:space-y-0 mb-6">
               {/* Logo */}
               <div className="flex items-center">
-                <img src="/logo.png" alt="VOIEVOD" className="h-8 md:h-10" />
+                <img src="/logo.png" alt="Voievod" className="h-8 md:h-10" />
               </div>
               
               {/* Links */}

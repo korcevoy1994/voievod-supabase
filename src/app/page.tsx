@@ -38,7 +38,7 @@ export default function Home() {
             <div className="flex items-center">
               <Image
                 src="/logo.png"
-                alt="VOIEVOD"
+                alt="Voievod"
                 width={40}
                 height={40}
                 className="h-8 md:h-10 hidden"
@@ -54,7 +54,7 @@ export default function Home() {
           <div className="flex justify-center pt-8 md:pt-0">
             <Image
               src="/text.png"
-              alt="VOIEVOD"
+              alt="Voievod"
               width={704}
               height={200}
               className="max-w-full h-auto w-96 sm:w-[28rem] md:w-[32rem] lg:w-[36rem] xl:w-[40rem] 2xl:w-[44rem]"
