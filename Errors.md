@@ -1,107 +1,54 @@
-[17:44:24.515] Running build in Washington, D.C., USA (East) – iad1
-[17:44:24.516] Build machine configuration: 2 cores, 8 GB
-[17:44:24.540] Cloning github.com/korcevoy1994/voievod-supabase (Branch: main, Commit: 9278fdc)
-[17:44:25.153] Cloning completed: 613.000ms
-[17:44:26.963] Restored build cache from previous deployment (HxKnrbr5J8VJMndenFU3cxP6ANiP)
-[17:44:27.634] Running "vercel build"
-[17:44:28.057] Vercel CLI 46.1.1
-[17:44:28.579] Running "install" command: `npm install`...
-[17:44:35.994] 
-[17:44:35.995] added 38 packages, and audited 501 packages in 7s
-[17:44:35.996] 
-[17:44:35.996] 159 packages are looking for funding
-[17:44:35.997]   run `npm fund` for details
-[17:44:36.020] 
-[17:44:36.021] 2 vulnerabilities (1 moderate, 1 high)
-[17:44:36.021] 
-[17:44:36.022] To address all issues, run:
-[17:44:36.022]   npm audit fix
-[17:44:36.022] 
-[17:44:36.022] Run `npm audit` for details.
-[17:44:36.061] Detected Next.js version: 15.4.5
-[17:44:36.062] Running "npm run build"
-[17:44:36.185] 
-[17:44:36.186] > voev@0.1.0 build
-[17:44:36.186] > next build
-[17:44:36.186] 
-[17:44:37.209]  ⚠ Invalid next.config.ts options detected: 
-[17:44:37.210]  ⚠     Unrecognized key(s) in object: 'swcMinify'
-[17:44:37.210]  ⚠ See more info here: https://nextjs.org/docs/messages/invalid-next-config
-[17:44:37.317]    ▲ Next.js 15.4.5
-[17:44:37.318]    - Experiments (use with caution):
-[17:44:37.319]      ✓ optimizeCss
-[17:44:37.319]      · optimizePackageImports
-[17:44:37.320] 
-[17:44:37.426]    Creating an optimized production build ...
-[17:44:42.150] 
-[17:44:42.153] 
-[17:44:42.153] Retrying 1/3...
-[17:44:42.159] 
-[17:44:42.159] 
-[17:44:42.159] Retrying 1/3...
-[17:44:42.163] 
-[17:44:42.163] 
-[17:44:42.163] Retrying 1/3...
-[17:44:42.164] 
-[17:44:42.164] 
-[17:44:42.164] Retrying 1/3...
-[17:44:42.166] 
-[17:44:42.166] 
-[17:44:42.166] Retrying 1/3...
-[17:44:42.166] 
-[17:44:42.166] 
-[17:44:42.166] Retrying 1/3...
-[17:44:42.167] 
-[17:44:42.167] 
-[17:44:42.167] Retrying 1/3...
-[17:44:59.889] <w> [webpack.cache.PackFileCacheStrategy] Serializing big strings (108kiB) impacts deserialization performance (consider using Buffer instead and decode when needed)
-[17:45:00.124]  ⚠ Compiled with warnings in 2000ms
-[17:45:00.127] 
-[17:45:00.127] ./node_modules/@supabase/supabase-js/dist/module/index.js
-[17:45:00.127] A Node.js API is used (process.version at line: 17) which is not supported in the Edge Runtime.
-[17:45:00.127] Learn more: https://nextjs.org/docs/api-reference/edge-runtime
-[17:45:00.127] 
-[17:45:00.127] Import trace for requested module:
-[17:45:00.128] ./node_modules/@supabase/supabase-js/dist/module/index.js
-[17:45:00.128] ./node_modules/@supabase/ssr/dist/module/createServerClient.js
-[17:45:00.128] __barrel_optimize__?names=createServerClient!=!./node_modules/@supabase/ssr/dist/module/index.js
-[17:45:00.128] 
-[17:45:00.128] ./node_modules/@supabase/supabase-js/dist/module/index.js
-[17:45:00.128] A Node.js API is used (process.version at line: 18) which is not supported in the Edge Runtime.
-[17:45:00.128] Learn more: https://nextjs.org/docs/api-reference/edge-runtime
-[17:45:00.128] 
-[17:45:00.128] Import trace for requested module:
-[17:45:00.128] ./node_modules/@supabase/supabase-js/dist/module/index.js
-[17:45:00.128] ./node_modules/@supabase/ssr/dist/module/createServerClient.js
-[17:45:00.128] __barrel_optimize__?names=createServerClient!=!./node_modules/@supabase/ssr/dist/module/index.js
-[17:45:00.128] 
-[17:45:00.128] ./node_modules/@supabase/supabase-js/dist/module/index.js
-[17:45:00.129] A Node.js API is used (process.version at line: 21) which is not supported in the Edge Runtime.
-[17:45:00.129] Learn more: https://nextjs.org/docs/api-reference/edge-runtime
-[17:45:00.129] 
-[17:45:00.129] Import trace for requested module:
-[17:45:00.129] ./node_modules/@supabase/supabase-js/dist/module/index.js
-[17:45:00.129] ./node_modules/@supabase/ssr/dist/module/createServerClient.js
-[17:45:00.129] __barrel_optimize__?names=createServerClient!=!./node_modules/@supabase/ssr/dist/module/index.js
-[17:45:00.134] 
-[17:45:12.677]  ✓ Compiled successfully in 31.0s
-[17:45:12.682]    Skipping validation of types
-[17:45:12.682]    Skipping linting
-[17:45:12.950]    Collecting page data ...
-[17:45:17.548]    Generating static pages (0/43) ...
-[17:45:18.045] Error occurred prerendering page "/404". Read more: https://nextjs.org/docs/messages/prerender-error
-[17:45:18.046] [Error: Cannot find module 'critters'
-[17:45:18.049] Require stack:
-[17:45:18.049] - /vercel/path0/node_modules/next/dist/compiled/next-server/pages.runtime.prod.js
-[17:45:18.050] - /vercel/path0/.next/server/pages/_document.js
-[17:45:18.050] - /vercel/path0/node_modules/next/dist/server/require.js
-[17:45:18.050] - /vercel/path0/node_modules/next/dist/server/load-components.js
-[17:45:18.050] - /vercel/path0/node_modules/next/dist/build/utils.js
-[17:45:18.051] - /vercel/path0/node_modules/next/dist/build/worker.js
-[17:45:18.051] - /vercel/path0/node_modules/next/dist/compiled/jest-worker/processChild.js] {
-[17:45:18.051]   code: 'MODULE_NOT_FOUND',
-[17:45:18.051]   requireStack: [Array]
-[17:45:18.051] }
-[17:45:18.052] Export encountered an error on /_error: /404, exiting the build.
-[17:45:18.082]  ⨯ Next.js build worker exited with code: 1 and signal: null
-[17:45:18.118] Error: Command "npm run build" exited with 1
+[15:36:21.488] Running build in Washington, D.C., USA (East) – iad1
+[15:36:21.488] Build machine configuration: 2 cores, 8 GB
+[15:36:21.522] Cloning github.com/korcevoy1994/voievod-supabase (Branch: main, Commit: 5bdeb0e)
+[15:36:22.156] Cloning completed: 634.000ms
+[15:36:24.760] Restored build cache from previous deployment (2DEEqLKCJtRcGuHV2HY2keGd2Con)
+[15:36:26.278] Running "vercel build"
+[15:36:26.669] Vercel CLI 47.0.4
+[15:36:27.008] Running "install" command: `npm install`...
+[15:36:29.263] 
+[15:36:29.263] up to date, audited 509 packages in 2s
+[15:36:29.263] 
+[15:36:29.264] 162 packages are looking for funding
+[15:36:29.264]   run `npm fund` for details
+[15:36:29.299] 
+[15:36:29.299] 2 vulnerabilities (1 moderate, 1 high)
+[15:36:29.299] 
+[15:36:29.300] To address all issues, run:
+[15:36:29.300]   npm audit fix
+[15:36:29.300] 
+[15:36:29.300] Run `npm audit` for details.
+[15:36:29.334] Detected Next.js version: 15.4.5
+[15:36:29.335] Running "npm run build"
+[15:36:29.448] 
+[15:36:29.449] > voev@0.1.0 build
+[15:36:29.449] > next build
+[15:36:29.449] 
+[15:36:30.645]    ▲ Next.js 15.4.5
+[15:36:30.646]    - Experiments (use with caution):
+[15:36:30.646]      ✓ optimizeCss
+[15:36:30.647]      · optimizePackageImports
+[15:36:30.647] 
+[15:36:30.688]    Creating an optimized production build ...
+[15:36:45.735]  ✓ Compiled successfully in 11.0s
+[15:36:45.740]    Skipping validation of types
+[15:36:45.740]    Skipping linting
+[15:36:46.015]    Collecting page data ...
+[15:36:50.711]    Generating static pages (0/45) ...
+[15:36:51.823]    Generating static pages (11/45) 
+[15:36:52.199]    Generating static pages (22/45) 
+[15:36:52.427]  ⨯ useSearchParams() should be wrapped in a suspense boundary at page "/payment/failed". Read more: https://nextjs.org/docs/messages/missing-suspense-with-csr-bailout
+[15:36:52.427]     at g (/vercel/path0/.next/server/chunks/3069.js:3:15403)
+[15:36:52.427]     at l (/vercel/path0/.next/server/chunks/3069.js:7:61346)
+[15:36:52.427]     at g (/vercel/path0/.next/server/app/payment/failed/page.js:2:8653)
+[15:36:52.428]     at n4 (/vercel/path0/node_modules/next/dist/compiled/next-server/app-page.runtime.prod.js:2:81697)
+[15:36:52.428]     at n8 (/vercel/path0/node_modules/next/dist/compiled/next-server/app-page.runtime.prod.js:2:83467)
+[15:36:52.428]     at n9 (/vercel/path0/node_modules/next/dist/compiled/next-server/app-page.runtime.prod.js:2:103676)
+[15:36:52.428]     at n5 (/vercel/path0/node_modules/next/dist/compiled/next-server/app-page.runtime.prod.js:2:101094)
+[15:36:52.428]     at n3 (/vercel/path0/node_modules/next/dist/compiled/next-server/app-page.runtime.prod.js:2:82049)
+[15:36:52.429]     at n8 (/vercel/path0/node_modules/next/dist/compiled/next-server/app-page.runtime.prod.js:2:83513)
+[15:36:52.429]     at n8 (/vercel/path0/node_modules/next/dist/compiled/next-server/app-page.runtime.prod.js:2:100435)
+[15:36:52.429] Error occurred prerendering page "/payment/failed". Read more: https://nextjs.org/docs/messages/prerender-error
+[15:36:52.429] Export encountered an error on /payment/failed/page: /payment/failed, exiting the build.
+[15:36:52.434]  ⨯ Next.js build worker exited with code: 1 and signal: null
+[15:36:52.474] Error: Command "npm run build" exited with 1
