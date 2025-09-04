@@ -1,5 +1,6 @@
 import crypto from 'crypto';
 import { HttpsProxyAgent } from 'https-proxy-agent';
+import https from 'https';
 
 interface MaibConfig {
   projectId: string;
@@ -82,43 +83,54 @@ class MaibClient {
     });
 
     const agent = this.createProxyAgent();
-    const fetchOptions: RequestInit = {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        projectId: this.config.projectId,
-        projectSecret: this.config.projectSecret,
-      }),
-    };
-
-    if (agent) {
-      (fetchOptions as any).agent = agent;
-    }
-
-    const response = await fetch(`${this.baseUrl}/generate-token`, fetchOptions);
-
-    if (!response.ok) {
-      const errorText = await response.text();
-      console.error('MAIB Token Error:', {
-        status: response.status,
-        statusText: response.statusText,
-        errorText,
-        headers: Object.fromEntries(response.headers.entries())
-      });
-      throw new Error(`Failed to generate token: ${response.status} ${response.statusText} - ${errorText}`);
-    }
-
-    const result = await response.json();
-    console.log('MAIB Token Response:', {
-      hasResult: !!result.result,
-      hasAccessToken: !!(result.result?.accessToken || result.accessToken || result.token),
-      resultKeys: Object.keys(result)
+    const postData = JSON.stringify({
+      projectId: this.config.projectId,
+      projectSecret: this.config.projectSecret,
     });
-    
-    // MAIB API возвращает токен в result.accessToken
-    return result.result?.accessToken || result.accessToken || result.token;
+
+    return new Promise((resolve, reject) => {
+      const url = new URL(`${this.baseUrl}/generate-token`);
+      const options: https.RequestOptions = {
+        hostname: url.hostname,
+        port: url.port || 443,
+        path: url.pathname,
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Content-Length': Buffer.byteLength(postData)
+        },
+        agent: agent
+      };
+
+      const req = https.request(options, (res) => {
+        let data = '';
+        res.on('data', (chunk) => {
+          data += chunk;
+        });
+        res.on('end', () => {
+          try {
+            const result = JSON.parse(data);
+            console.log('MAIB Token Response:', {
+              hasResult: !!result.result,
+              hasAccessToken: !!(result.result?.accessToken || result.accessToken || result.token),
+              resultKeys: Object.keys(result)
+            });
+            const token = result.result?.accessToken || result.accessToken || result.token;
+            resolve(token);
+          } catch (error) {
+            reject(new Error(`Failed to parse token response: ${error}`));
+          }
+        });
+      });
+
+      req.on('error', (error) => {
+        console.error('MAIB Token Error:', error);
+        reject(error);
+      });
+
+      req.write(postData);
+      req.end();
+    });
   }
 
   /**
@@ -155,87 +167,86 @@ class MaibClient {
     });
 
     const agent = this.createProxyAgent();
-    const fetchOptions: RequestInit = {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${token}`,
-      },
-      body: JSON.stringify(requestBody),
-    };
+    const postData = JSON.stringify(requestBody);
 
-    if (agent) {
-      (fetchOptions as any).agent = agent;
-    }
+    return new Promise((resolve, reject) => {
+      const url = new URL(`${this.baseUrl}/pay`);
+      const options: https.RequestOptions = {
+        hostname: url.hostname,
+        port: url.port || 443,
+        path: url.pathname,
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`,
+          'Content-Length': Buffer.byteLength(postData)
+        },
+        agent: agent
+      };
 
-    const response = await fetch(`${this.baseUrl}/pay`, fetchOptions);
-
-    if (!response.ok) {
-      let errorMessage = response.statusText;
-      let responseText = '';
-      try {
-        responseText = await response.text();
-        if (responseText) {
+      const req = https.request(options, (res) => {
+        let data = '';
+        res.on('data', (chunk) => {
+          data += chunk;
+        });
+        res.on('end', () => {
           try {
-            const errorData = JSON.parse(responseText);
-            // Проверяем структуру ошибок MAIB API
-            if (errorData.errors && Array.isArray(errorData.errors)) {
-              errorMessage = errorData.errors.map((err: any) => 
-                `${err.errorCode}: ${err.errorMessage}`
-              ).join(', ');
-            } else {
-              errorMessage = errorData.message || responseText;
+            if (res.statusCode && res.statusCode >= 400) {
+              let errorMessage = res.statusMessage || 'Unknown error';
+              try {
+                const errorData = JSON.parse(data);
+                if (errorData.errors && Array.isArray(errorData.errors)) {
+                  errorMessage = errorData.errors.map((err: any) => 
+                    `${err.errorCode}: ${err.errorMessage}`
+                  ).join(', ');
+                } else {
+                  errorMessage = errorData.message || data;
+                }
+              } catch {
+                errorMessage = data || res.statusMessage || 'Unknown error';
+              }
+              
+              console.error('MAIB Payment Error:', {
+                status: res.statusCode,
+                statusText: res.statusMessage,
+                errorMessage,
+                responseText: data,
+                timestamp: new Date().toISOString()
+              });
+              
+              reject(new Error(`Payment creation failed: ${res.statusCode} ${errorMessage}`));
+              return;
             }
-          } catch {
-            errorMessage = responseText;
+
+            const result = JSON.parse(data);
+            console.log('MAIB Payment Response:', {
+              hasResult: !!result.result,
+              hasPayUrl: !!(result.result?.payUrl || result.payUrl),
+              hasPayId: !!(result.result?.payId || result.payId),
+              resultKeys: Object.keys(result)
+            });
+
+            const paymentResponse: PaymentResponse = {
+              payUrl: result.result?.payUrl || result.payUrl,
+              payId: result.result?.payId || result.payId,
+              orderId: result.result?.orderId || result.orderId || paymentData.orderId
+            };
+
+            resolve(paymentResponse);
+          } catch (error) {
+            reject(new Error(`Failed to parse payment response: ${error}`));
           }
-        }
-      } catch {
-        // Используем statusText если не можем прочитать ответ
-      }
-      
-      console.error('MAIB Payment Error:', {
-        status: response.status,
-        statusText: response.statusText,
-        errorMessage,
-        responseText,
-        headers: Object.fromEntries(response.headers.entries()),
-        timestamp: new Date().toISOString()
+        });
       });
-      
-      throw new Error(`Payment creation failed: ${response.status} ${errorMessage}`);
-    }
 
-    const result = await response.json();
-    
-    console.log('MAIB Payment Response:', {
-      ok: result.ok,
-      hasResult: !!result.result,
-      resultKeys: result.result ? Object.keys(result.result) : [],
-      timestamp: new Date().toISOString()
+      req.on('error', (error) => {
+        console.error('MAIB Payment Request Error:', error);
+        reject(error);
+      });
+
+      req.write(postData);
+      req.end();
     });
-    
-    // Проверяем успешность ответа
-    if (!result.ok) {
-      let errorMessage = 'Unknown error';
-      if (result.errors && Array.isArray(result.errors)) {
-        errorMessage = result.errors.map((err: any) => 
-          `${err.errorCode}: ${err.errorMessage}`
-        ).join(', ');
-      }
-      console.error('MAIB Payment Result Error:', {
-        errorMessage,
-        errors: result.errors,
-        fullResult: result
-      });
-      throw new Error(`Payment creation failed: ${errorMessage}`);
-    }
-
-    return {
-      payUrl: result.result.payUrl,
-      payId: result.result.payId,
-      orderId: result.result.orderId,
-    };
   }
 
   /**

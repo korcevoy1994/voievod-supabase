@@ -3,6 +3,11 @@ import { NextResponse } from 'next/server'
 import type { NextRequest } from 'next/server'
 
 export async function middleware(req: NextRequest) {
+  // Пропускаем тестовые API endpoints
+  if (req.nextUrl.pathname === '/api/test-ip' || req.nextUrl.pathname === '/api/check-ip') {
+    return NextResponse.next()
+  }
+  
   // Проверяем только админ-роуты
   if (req.nextUrl.pathname.startsWith('/admin')) {
     let response = NextResponse.next({
@@ -98,7 +103,8 @@ export const config = {
      * - _next/image (image optimization files)
      * - favicon.ico (favicon file)
      * - public folder
+     * - api/test-ip (test endpoint)
      */
-    '/((?!_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)',
+    '/((?!_next/static|_next/image|favicon.ico|api/test-ip|api/check-ip|.*\.(?:svg|png|jpg|jpeg|gif|webp)$).*)',
   ],
 }
