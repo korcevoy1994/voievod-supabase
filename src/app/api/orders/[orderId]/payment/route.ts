@@ -52,26 +52,31 @@ export async function POST(
     if (paymentProvider === 'maib') {
       try {
         // Получаем IP адрес клиента
-        let clientIp = request.headers.get('x-forwarded-for')?.split(',')[0] ||
+        let clientIp = request.headers.get('x-forwarded-for')?.split(',')[0]?.trim() ||
                         request.headers.get('x-real-ip') ||
                         request.headers.get('cf-connecting-ip') ||
-                        '192.168.1.1'; // Используем валидный IP вместо localhost
+                        '216.198.79.65'; // IP адрес сервера Vercel
         
-        // Конвертируем IPv6 localhost в IPv4
-        if (clientIp === '::1' || clientIp === '127.0.0.1') {
-          clientIp = '192.168.1.1'; // MAIB может не принимать localhost IP
+        // Конвертируем IPv6 localhost в IPv4 и используем IP сервера
+        if (clientIp === '::1' || clientIp === '127.0.0.1' || clientIp === 'localhost') {
+          clientIp = '216.198.79.65'; // IP адрес сервера для MAIB
         }
-        
-        // Конвертируем IPv6 localhost в IPv4
-        if (clientIp === '::1' || clientIp === '127.0.0.1') {
-          clientIp = '192.168.1.1'; // MAIB может не принимать localhost IP
-        }
-        
-        console.log('Client IP for MAIB:', clientIp);
-        console.log('Order total_price:', order.total_price, 'type:', typeof order.total_price);
         
         // Создаем платеж через MAIB
         const baseUrl = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000';
+        
+        console.log('MAIB Payment Request Details:', {
+          clientIp,
+          orderId,
+          totalPrice: order.total_price,
+          priceType: typeof order.total_price,
+          baseUrl,
+          headers: {
+            'x-forwarded-for': request.headers.get('x-forwarded-for'),
+            'x-real-ip': request.headers.get('x-real-ip'),
+            'cf-connecting-ip': request.headers.get('cf-connecting-ip')
+          }
+        });
         const callbackUrl = `${baseUrl}/api/payments/maib/callback`;
         const successUrl = `${baseUrl}/checkout/success?orderId=${orderId}`;
         const failUrl = `${baseUrl}/checkout/fail?orderId=${orderId}`;
@@ -156,12 +161,29 @@ export async function POST(
           requiresRedirect: true
         });
       } catch (error) {
-        console.error('MAIB payment error:', error);
+        console.error('MAIB payment error details:', {
+          error: error instanceof Error ? error.message : String(error),
+          stack: error instanceof Error ? error.stack : undefined,
+          orderId,
+          timestamp: new Date().toISOString()
+        });
+        
+        // Извлекаем более детальную информацию об ошибке
+        let errorMessage = 'Ошибка при создании платежа. Попробуйте позже.';
+        if (error instanceof Error) {
+          if (error.message.includes('Failed to generate token')) {
+            errorMessage = 'Ошибка авторизации с MAIB. Проверьте настройки.';
+          } else if (error.message.includes('Payment creation failed')) {
+            errorMessage = 'Ошибка создания платежа в MAIB. Проверьте данные.';
+          }
+        }
+        
         return NextResponse.json(
           { 
             success: false,
             error: 'MAIB payment failed',
-            message: 'Ошибка при создании платежа. Попробуйте позже.'
+            message: errorMessage,
+            details: error instanceof Error ? error.message : String(error)
           },
           { status: 500 }
         );
