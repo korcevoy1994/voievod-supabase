@@ -1,4 +1,5 @@
 import crypto from 'crypto';
+import { HttpsProxyAgent } from 'https-proxy-agent';
 
 interface MaibConfig {
   projectId: string;
@@ -55,6 +56,21 @@ class MaibClient {
   }
 
   /**
+   * Создает агент прокси для HTTP запросов если настроен FIXIE_URL
+   */
+  private createProxyAgent(): HttpsProxyAgent<string> | undefined {
+    const fixieUrl = process.env.FIXIE_URL;
+    if (fixieUrl) {
+      console.log('Using Fixie proxy for MAIB requests:', {
+        proxyUrl: fixieUrl.replace(/:\/\/[^:]+:[^@]+@/, '://***:***@'),
+        timestamp: new Date().toISOString()
+      });
+      return new HttpsProxyAgent(fixieUrl);
+    }
+    return undefined;
+  }
+
+  /**
    * Генерация токена доступа
    */
   private async generateToken(): Promise<string> {
@@ -65,7 +81,8 @@ class MaibClient {
       timestamp: new Date().toISOString()
     });
 
-    const response = await fetch(`${this.baseUrl}/generate-token`, {
+    const agent = this.createProxyAgent();
+    const fetchOptions: RequestInit = {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -74,7 +91,13 @@ class MaibClient {
         projectId: this.config.projectId,
         projectSecret: this.config.projectSecret,
       }),
-    });
+    };
+
+    if (agent) {
+      (fetchOptions as any).agent = agent;
+    }
+
+    const response = await fetch(`${this.baseUrl}/generate-token`, fetchOptions);
 
     if (!response.ok) {
       const errorText = await response.text();
@@ -131,14 +154,21 @@ class MaibClient {
       timestamp: new Date().toISOString()
     });
 
-    const response = await fetch(`${this.baseUrl}/pay`, {
+    const agent = this.createProxyAgent();
+    const fetchOptions: RequestInit = {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
         'Authorization': `Bearer ${token}`,
       },
       body: JSON.stringify(requestBody),
-    });
+    };
+
+    if (agent) {
+      (fetchOptions as any).agent = agent;
+    }
+
+    const response = await fetch(`${this.baseUrl}/pay`, fetchOptions);
 
     if (!response.ok) {
       let errorMessage = response.statusText;
@@ -214,7 +244,8 @@ class MaibClient {
   async getPaymentInfo(transactionId: string): Promise<PaymentInfo> {
     const token = await this.generateToken();
 
-    const response = await fetch(`${this.baseUrl}/pay-info`, {
+    const agent = this.createProxyAgent();
+    const fetchOptions: RequestInit = {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -223,7 +254,13 @@ class MaibClient {
       body: JSON.stringify({
         transactionId,
       }),
-    });
+    };
+
+    if (agent) {
+      (fetchOptions as any).agent = agent;
+    }
+
+    const response = await fetch(`${this.baseUrl}/pay-info`, fetchOptions);
 
     if (!response.ok) {
       throw new Error(`Failed to get payment info: ${response.statusText}`);
@@ -254,14 +291,21 @@ class MaibClient {
       requestBody.refundAmount = refundAmount;
     }
 
-    const response = await fetch(`${this.baseUrl}/refund`, {
+    const agent = this.createProxyAgent();
+    const fetchOptions: RequestInit = {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
         'Authorization': `Bearer ${token}`,
       },
       body: JSON.stringify(requestBody),
-    });
+    };
+
+    if (agent) {
+      (fetchOptions as any).agent = agent;
+    }
+
+    const response = await fetch(`${this.baseUrl}/refund`, fetchOptions);
 
     if (!response.ok) {
       let errorMessage = response.statusText;
