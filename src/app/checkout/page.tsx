@@ -330,30 +330,42 @@ const CheckoutPageContent: React.FC = () => {
                 </div>
 
                 <div className="pt-4">
-                  <h3 className="text-lg font-semibold text-white mb-4">Metodă de plată</h3>
+                  <h3 className="text-lg font-semibold text-white mb-0">Metodă de plată</h3>
                   <div className="space-y-3">
-                    <label className="flex items-center p-3 border border-gray-600 rounded-lg hover:border-blue-500 transition-colors cursor-pointer">
-                      <input
-                        type="radio"
-                        value="card"
-                        checked={paymentMethod === 'card'}
-                        onChange={(e) => {
-                          setPaymentMethod(e.target.value)
-                          setPaymentProvider('maib')
-                        }}
-                        className="mr-3"
-                      />
-                      <div className="flex items-center gap-3">
-                        <div className="w-8 h-8 bg-blue-600 rounded flex items-center justify-center">
-                          <svg className="w-4 h-4 text-white" fill="currentColor" viewBox="0 0 20 20">
-                            <path d="M4 4a2 2 0 00-2 2v8a2 2 0 002 2h12a2 2 0 002-2V6a2 2 0 00-2-2H4zm2 6a1 1 0 011-1h6a1 1 0 110 2H7a1 1 0 01-1-1zm1 3a1 1 0 100 2h6a1 1 0 100-2H7z" />
-                          </svg>
-                        </div>
-                        <div>
-                          <span className="text-white font-medium">Card bancar (MAIB)</span>
-                          <div className="text-gray-400 text-sm">Plată securizată prin MAIB</div>
+                    <label className="flex flex-col p-3 border border-gray-600 rounded-lg hover:border-blue-500 transition-colors cursor-pointer">
+                      <div className="flex items-center">
+                        <input
+                          type="radio"
+                          value="card"
+                          checked={paymentMethod === 'card'}
+                          onChange={(e) => {
+                            setPaymentMethod(e.target.value)
+                            setPaymentProvider('maib')
+                          }}
+                          className="mr-3"
+                        />
+                        <div className="flex items-center gap-3">
+                          <div className="w-8 h-8 bg-blue-600 rounded flex items-center justify-center">
+                            <svg className="w-4 h-4 text-white" fill="currentColor" viewBox="0 0 20 20">
+                              <path d="M4 4a2 2 0 00-2 2v8a2 2 0 002 2h12a2 2 0 002-2V6a2 2 0 00-2-2H4zm2 6a1 1 0 011-1h6a1 1 0 110 2H7a1 1 0 01-1-1zm1 3a1 1 0 100 2h6a1 1 0 100-2H7z" />
+                            </svg>
+                          </div>
+                          <div className="flex flex-col">
+                            <span className="text-white font-medium text-lg">Card bancar (MAIB)</span>
+                            <div className="text-gray-400 text-sm mt-1">Plată securizată prin MAIB</div>
+                          </div>
                         </div>
                       </div>
+                      
+                      {/* MAIB Logo under radio button */}
+                       <div className="mt-0 flex justify-start">
+                          <img 
+                            src="/maib-logo.svg" 
+                            alt="MAIB Logo" 
+                            className="w-32 h-20 object-contain filter brightness-110"
+                            style={{maxWidth: '128px', maxHeight: '40px'}}
+                          />
+                        </div>
                     </label>
 
                   </div>
