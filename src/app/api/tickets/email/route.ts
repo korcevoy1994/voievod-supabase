@@ -196,10 +196,52 @@ const generateAllTicketPDFs = async (order: Order): Promise<Array<{buffer: Buffe
   return tickets;
 }
 
-export async function POST(request: NextRequest) {
+// Функция для логирования отправки email
+const logEmailAttempt = async (supabase: any, orderId: string, recipientEmail: string, status: 'pending' | 'sent' | 'failed', errorMessage?: string, smtpResponse?: string) => {
   try {
-    const supabase = createSupabaseServerClient();
-    const { orderId } = await request.json()
+    const logData: any = {
+      order_id: orderId,
+      recipient_email: recipientEmail,
+      email_type: 'ticket_confirmation',
+      status: status,
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString()
+    };
+
+    if (status === 'sent') {
+      logData.sent_at = new Date().toISOString();
+    }
+    
+    if (errorMessage) {
+      logData.error_message = errorMessage;
+    }
+    
+    if (smtpResponse) {
+      logData.smtp_response = smtpResponse;
+    }
+
+    const { error } = await supabase
+      .from('email_logs')
+      .insert(logData);
+    
+    if (error) {
+      console.error('❌ Ошибка записи лога email:', error);
+    } else {
+      console.log('📝 Лог email записан:', { orderId, recipientEmail, status });
+    }
+  } catch (logError) {
+    console.error('❌ Ошибка при записи лога email:', logError);
+  }
+};
+
+export async function POST(request: NextRequest) {
+  const supabase = createSupabaseServerClient();
+  let orderId: string = '';
+  let recipientEmail: string = '';
+  
+  try {
+    const { orderId: requestOrderId } = await request.json()
+    orderId = requestOrderId;
     
     if (!orderId) {
       return NextResponse.json(
@@ -224,6 +266,11 @@ export async function POST(request: NextRequest) {
         { status: 404 }
       )
     }
+    
+    recipientEmail = order.customer_email;
+    
+    // Логируем начало попытки отправки email
+    await logEmailAttempt(supabase, orderId, recipientEmail, 'pending');
 
     // Получаем места заказа отдельно
     console.log('🔍 Запрашиваем места для заказа:', orderId)
@@ -379,6 +426,16 @@ export async function POST(request: NextRequest) {
       console.log('❌ Email отклонен для:', info.rejected)
     }
     
+    // Логируем успешную отправку
+    const smtpResponse = JSON.stringify({
+      messageId: info.messageId,
+      accepted: info.accepted,
+      rejected: info.rejected,
+      response: info.response
+    });
+    
+    await logEmailAttempt(supabase, orderId, recipientEmail, 'sent', undefined, smtpResponse);
+    
     return NextResponse.json({
       success: true,
       message: 'Email sent successfully',
@@ -388,6 +445,14 @@ export async function POST(request: NextRequest) {
     
   } catch (error) {
     // Error sending email
+    console.error('❌ Ошибка отправки email:', error);
+    
+    // Логируем ошибку отправки
+    if (orderId && recipientEmail) {
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      await logEmailAttempt(supabase, orderId, recipientEmail, 'failed', errorMessage);
+    }
+    
     return NextResponse.json(
       { error: 'Failed to send email' },
       { status: 500 }

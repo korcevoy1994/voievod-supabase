@@ -12,7 +12,7 @@ const SelectedTickets = lazy(() => import('@/components/SelectedTickets'))
 const MobileSelectedTickets = lazy(() => import('@/components/MobileSelectedTickets'))
 import LegendBar from '@/components/LegendBar'
 import { useEventPricing } from '@/lib/hooks/useSupabaseData'
-import { useOptimizedEventPricing, useOptimizedZones, useOptimizedZoneColors, useOptimizedVipZones } from '@/lib/hooks/useOptimizedData'
+import { useOptimizedEventPricing, useOptimizedZones, useOptimizedZoneColors, useOptimizedVipZones, useOptimizedZoneStats } from '@/lib/hooks/useOptimizedData'
 import { getOrCreateSessionUserId } from '@/lib/userSession'
 import { logger } from '@/lib/logger'
 import { CacheStats } from '@/components/dev/CacheStats'
@@ -41,6 +41,48 @@ export default function VoevodaSupabaseEventPage() {
   const { data: zones } = useOptimizedZones()
   const { data: zoneColors } = useOptimizedZoneColors()
   const { data: vipZonesData, loading: vipZonesLoading } = useOptimizedVipZones('550e8400-e29b-41d4-a716-446655440000')
+  const { data: zoneStats, loading: zoneStatsLoading, refetch: refetchZoneStats } = useOptimizedZoneStats('550e8400-e29b-41d4-a716-446655440000')
+  
+  // Debug для zoneStats
+  useEffect(() => {
+    console.log('📊 ZoneStats Hook State:', {
+      zoneStats,
+      loading: zoneStatsLoading,
+      zone207: zoneStats?.['207']
+    })
+  }, [zoneStats, zoneStatsLoading])
+  
+  // Принудительная очистка кеша для zoneStats при загрузке
+  useEffect(() => {
+    // Очищаем кеш для zone stats
+    if (typeof window !== 'undefined') {
+      // Очищаем все возможные ключи кеша
+      const keys = Object.keys(localStorage).filter(key => key.includes('zone-stats'))
+      keys.forEach(key => localStorage.removeItem(key))
+      
+      // Также очищаем globalCache
+      import('@/lib/cache/enhancedCache').then(({ globalCache }) => {
+        globalCache.clear() // Полная очистка кеша
+      })
+      console.log('🗑️ Cleared ALL cache including zoneStats')
+      
+      // Принудительно вызываем refetch
+      setTimeout(() => {
+        refetchZoneStats()
+        console.log('🔄 Force refetch zoneStats')
+      }, 1000)
+      
+      // Прямой тест API
+      fetch('/api/zones/stats?eventId=550e8400-e29b-41d4-a716-446655440000')
+        .then(res => res.json())
+        .then(data => {
+          console.log('🧪 Direct API Test:', data)
+        })
+        .catch(err => {
+          console.error('❌ Direct API Test Error:', err)
+        })
+    }
+  }, [refetchZoneStats])
   const [activeZone, setActiveZone] = useState<string | null>(null)
   const [showTooltip, setShowTooltip] = useState(true)
   const [selectedSeats, setSelectedSeats] = useState<Record<string, string[]>>({})
@@ -410,7 +452,6 @@ export default function VoevodaSupabaseEventPage() {
                     <h1 className="text-xl sm:text-2xl lg:text-3xl xl:text-4xl font-bold text-white">
                       Bilete
                     </h1>
-
                   </div>
 
                 </div>
@@ -431,6 +472,7 @@ export default function VoevodaSupabaseEventPage() {
                         zoneStatus={zoneColors?.zoneStatus}
                         vipZonesData={vipZonesData}
                         vipTickets={vipTickets}
+                        zoneStats={zoneStats}
                       />
                     </Suspense>
                   </div>

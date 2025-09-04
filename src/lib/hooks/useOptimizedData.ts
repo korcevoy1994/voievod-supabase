@@ -41,7 +41,10 @@ export function useOptimizedData<T>(
   const [error, setError] = useState<string | null>(null)
 
   const fetchData = useCallback(async (useCache = true) => {
-    if (!enabled) return
+    if (!enabled) {
+      console.log(`🚫 Hook disabled for key: ${key}`)
+      return
+    }
 
     try {
       setError(null)
@@ -49,12 +52,14 @@ export function useOptimizedData<T>(
       if (useCache) {
         // Проверяем кэш
         const cached = globalCache.get<T>(key)
+        console.log(`🔍 Cache check for ${key}:`, { cached: !!cached, data: cached })
         if (cached) {
           setData(cached)
           setLoading(false)
           
           // Если включен staleWhileRevalidate, обновляем в фоне
           if (staleWhileRevalidate) {
+            console.log(`🔄 Background refresh for ${key}`)
             fetchData(false).catch(err => {
               logger.warn(`Background refresh failed for ${key}:`, err)
             })
@@ -62,6 +67,8 @@ export function useOptimizedData<T>(
           return
         }
       }
+      
+      console.log(`🌐 Making API request for ${key}`)
 
       setLoading(true)
       const result = await globalCache.getOrFetch(key, fetcher, ttl)
@@ -330,4 +337,37 @@ export function useCacheStats() {
   }, [])
 
   return stats
+}
+
+/**
+ * Хук для получения статистики мест по зонам с учетом проданных мест
+ */
+export function useOptimizedZoneStats(eventId: string = '550e8400-e29b-41d4-a716-446655440000') {
+  console.log('🎯 useOptimizedZoneStats called with eventId:', eventId)
+  
+  return useOptimizedData(
+    `zone-stats-${eventId}`,
+    async () => {
+      console.log('🌐 Making fetch request to /api/zones/stats')
+      const response = await fetch(`/api/zones/stats?eventId=${eventId}`)
+      if (!response.ok) {
+        throw new Error(`Failed to fetch zone stats: ${response.statusText}`)
+      }
+      const result = await response.json()
+      
+      // Debug для зоны 207
+      console.log('🌐 API Response for zone stats:', {
+        fullResult: result,
+        zones: result.data?.zones,
+        zone207: result.data?.zones?.['207']
+      })
+      
+      return result.data.zones // Возвращаем только данные зон из поля data
+    },
+    {
+       ttl: CACHE_TTL.STATIC, // 5 минут
+       staleWhileRevalidate: true,
+       enabled: true // Явно включаем
+     }
+  )
 }

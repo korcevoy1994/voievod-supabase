@@ -12,14 +12,30 @@ interface ArenaSVGProps {
   zoneStatus?: Record<string, boolean>
   vipZonesData?: any
   vipTickets?: Array<{ zone: string; [key: string]: any }>
+  zoneStats?: Record<string, {
+    total: number
+    available: number
+    sold: number
+    unavailable: number
+    blocked: number
+    free: number
+  }>
 }
 
 const ZONE_SEAT_DATA = ZONE_DATA_MAP as Record<string, any[]>
 
-const ArenaSVG: React.FC<ArenaSVGProps> = ({ onZoneClick, selectedSeats, onVipZoneClick, zonePrices = {}, zoneColors = {}, zoneStatus = {}, vipZonesData, vipTickets = [] }) => {
+const ArenaSVG: React.FC<ArenaSVGProps> = ({ onZoneClick, selectedSeats, onVipZoneClick, zonePrices = {}, zoneColors = {}, zoneStatus = {}, vipZonesData, vipTickets = [], zoneStats }) => {
   const [tooltip, setTooltip] = useState<null | { x: number; y: number; content: React.ReactNode }>(null)
   const [activeHoverZone, setActiveHoverZone] = useState<string | null>(null)
   const svgRef = useRef<SVGSVGElement>(null)
+
+  // Debug информация для zoneStats
+  console.log('🎯 ArenaSVG Component Debug:', {
+    hasZoneStats: !!zoneStats,
+    zoneStatsKeys: zoneStats ? Object.keys(zoneStats) : 'undefined',
+    zone207Stats: zoneStats?.['207'],
+    totalZones: zoneStats ? Object.keys(zoneStats).length : 0
+  })
 
 
 
@@ -70,21 +86,82 @@ const ArenaSVG: React.FC<ArenaSVGProps> = ({ onZoneClick, selectedSeats, onVipZo
 
   // Подсчет свободных мест для зоны
   function getZoneInfo(zoneId: string) {
+    const selectedCount = (selectedSeats[zoneId] || []).length
+    const stats = zoneStats?.[zoneId]
+    
+    // Debug для зоны 207
+    if (zoneId === '207') {
+      console.log('🔍 Zone 207 Debug Info:', {
+        zoneId,
+        selectedCount,
+        stats,
+        zoneStats: zoneStats ? Object.keys(zoneStats) : 'undefined',
+        hasStats: !!stats
+      })
+    }
+    
+    // Если есть статистика из базы данных, используем её
+    if (stats) {
+      // stats.free уже содержит правильное количество свободных мест, просто вычитаем выбранные
+      const free = Math.max(0, stats.free - selectedCount)
+      const isBlocked = stats.blocked === stats.total
+      
+      const result = { 
+        price: zonePrices[zoneId] || '-', 
+        free, 
+        isBlocked,
+        total: stats.total,
+        sold: stats.sold,
+        available: stats.available
+      }
+      
+      // Debug для зоны 207
+      if (zoneId === '207') {
+        console.log('📊 Zone 207 Result (with stats):', result)
+      }
+      
+      return result
+    }
+    
+    // Fallback к старому методу подсчета для совместимости
     const data = ZONE_SEAT_DATA[zoneId]
-    if (!data) return { price: zonePrices[zoneId] || '-', free: '-' }
+    if (!data) {
+      if (zoneId === '207') {
+        console.log('❌ Zone 207: No data found in ZONE_SEAT_DATA')
+      }
+      return { price: zonePrices[zoneId] || '-', free: '-' }
+    }
     
     // Проверяем, активна ли зона в базе данных
     const isZoneActive = zoneStatus[zoneId] !== false // по умолчанию активна, если не указано иное
     if (!isZoneActive) {
+      if (zoneId === '207') {
+        console.log('🚫 Zone 207: Zone is not active')
+      }
       return { price: zonePrices[zoneId] || '-', free: 0, isBlocked: true }
     }
     
     const total = data.length
-    const selected = (selectedSeats[zoneId] || []).length
+    const selectedInZone = (selectedSeats[zoneId] || []).length
     const unavailable = data.filter(s => s.status === 'unavailable').length
     const blocked = data.filter(s => s.status === 'blocked').length
-    const free = total - unavailable - blocked - selected
-    return { price: zonePrices[zoneId] || '-', free, isBlocked: blocked === total }
+    const free = total - unavailable - blocked - selectedInZone
+    
+    const fallbackResult = { price: zonePrices[zoneId] || '-', free, isBlocked: blocked === total }
+    
+    // Debug для зоны 207
+    if (zoneId === '207') {
+      console.log('🔄 Zone 207 Fallback Result:', {
+        total,
+        selectedInZone,
+        unavailable,
+        blocked,
+        free,
+        fallbackResult
+      })
+    }
+    
+    return fallbackResult
   }
 
 
