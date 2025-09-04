@@ -76,24 +76,29 @@ export default function RootLayout({
   children: React.ReactNode
 }) {
   return (
-    <html lang="ru">
+    <html lang="ro">
       <head>
-        <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no" />
-        <meta name="mobile-web-app-capable" content="yes" />
-        <meta name="apple-mobile-web-app-capable" content="yes" />
-        <meta name="apple-mobile-web-app-status-bar-style" content="default" />
-        <meta name="apple-mobile-web-app-title" content="VOIEVOD" />
-        <meta name="format-detection" content="telephone=no" />
-        <meta name="msapplication-TileColor" content="#dc2626" />
-        <meta name="msapplication-config" content="/browserconfig.xml" />
+        <Script
+          src="https://www.googletagmanager.com/gtag/js?id=G-XXXXXXXXXX"
+          strategy="afterInteractive"
+        />
+        <Script id="google-analytics" strategy="afterInteractive">
+          {`
+            window.dataLayer = window.dataLayer || [];
+            function gtag(){dataLayer.push(arguments);}
+            gtag('js', new Date());
+            gtag('config', 'G-XXXXXXXXXX');
+          `}
+        </Script>
         
-        {/* Structured Data for Event */}
-        <script
+        {/* Structured Data */}
+        <Script
+          id="structured-data"
           type="application/ld+json"
           dangerouslySetInnerHTML={{
             __html: JSON.stringify({
               "@context": "https://schema.org",
-              "@type": "MusicEvent",
+              "@type": "Event",
               "name": "VOIEVOD - Rock operă coregrafică",
               "description": "Spectacol de rock operă coregrafică cu Lupii lui Calancea, Baletul Național Joc, Guz și Surorile Osoianu",
               "startDate": "2025-12-14T19:00:00+02:00",
@@ -113,92 +118,81 @@ export default function RootLayout({
                 "https://voievod.md/bg-desc-min.jpg",
                 "https://voievod.md/text.png"
               ],
+              "organizer": {
+                "@type": "Organization",
+                "name": "VOIEVOD Production",
+                "url": "https://voievod.md"
+              },
+              "offers": {
+                "@type": "Offer",
+                "url": "https://voievod.md",
+                "priceCurrency": "MDL",
+                "price": "200",
+                "priceValidUntil": "2025-12-14",
+                "availability": "https://schema.org/InStock",
+                "validFrom": "2024-01-01"
+              },
               "performer": [
                 {
                   "@type": "MusicGroup",
                   "name": "Lupii lui Calancea"
                 },
                 {
-                  "@type": "DanceGroup",
+                  "@type": "TheaterGroup",
                   "name": "Baletul Național Joc"
                 },
                 {
-                  "@type": "MusicGroup",
+                  "@type": "Person",
                   "name": "Guz"
                 },
                 {
                   "@type": "MusicGroup",
                   "name": "Surorile Osoianu"
-                },
-                {
-                  "@type": "MusicGroup",
-                  "name": "Orchestra Simfonică a Filarmonicii Naționale"
-                },
-                {
-                  "@type": "MusicGroup",
-                  "name": "Corul Moldova"
                 }
-              ],
-              "offers": {
-                "@type": "Offer",
-                "url": "https://voievod.md/tickets",
-                "priceCurrency": "MDL",
-                "price": "200",
-                "priceRange": "200-1500 MDL",
-                "availability": "https://schema.org/InStock",
-                "validFrom": "2024-01-01T00:00:00+02:00"
-              },
-              "organizer": {
-                "@type": "Organization",
-                "name": "VOIEVOD Production",
-                "url": "https://voievod.md"
-              }
+              ]
             })
           }}
         />
       </head>
       <body className={inter.className}>
-        {/* Google Analytics */}
-        <Script
-          src="https://www.googletagmanager.com/gtag/js?id=G-XXXXXXXXXX"
-          strategy="afterInteractive"
-        />
-        <Script id="google-analytics" strategy="afterInteractive">
-          {`
-            window.dataLayer = window.dataLayer || [];
-            function gtag(){dataLayer.push(arguments);}
-            gtag('js', new Date());
-            gtag('config', 'G-XXXXXXXXXX', {
-              page_title: document.title,
-              page_location: window.location.href,
-            });
-          `}
-        </Script>
-        
         <WebVitals />
         {children}
         
         {/* Footer */}
         <footer className="bg-black p-6 md:p-8 text-white">
-          <div className="flex flex-col md:flex-row items-center justify-between space-y-4 md:space-y-0 max-w-7xl mx-auto">
-            {/* Logo */}
-            <div className="flex items-center">
-              <img src="/logo.png" alt="VOIEVOD" className="h-8 md:h-10" />
+          <div className="max-w-7xl mx-auto">
+            {/* Main footer content */}
+            <div className="flex flex-col md:flex-row items-center justify-between space-y-4 md:space-y-0 mb-6">
+              {/* Logo */}
+              <div className="flex items-center">
+                <img src="/logo.png" alt="VOIEVOD" className="h-8 md:h-10" />
+              </div>
+              
+              {/* Links */}
+              <div className="flex flex-col md:flex-row items-center space-y-2 md:space-y-0 md:space-x-6 text-sm">
+                <Link href="/terms" className="text-white hover:text-gray-300 transition-colors">
+                  Terms and conditions
+                </Link>
+                <Link href="/privacy" className="text-white hover:text-gray-300 transition-colors">
+                  Privacy Policy
+                </Link>
+              </div>
+              
+              {/* Payment logo */}
+              <div className="flex items-center">
+                <img src="/visa-maib.webp" alt="Visa MAIB" className="h-6 md:h-8" />
+              </div>
             </div>
             
-            {/* Links */}
-            <div className="flex flex-col md:flex-row items-center space-y-2 md:space-y-0 md:space-x-6 text-sm">
-              <Link href="/terms" className="text-white hover:text-gray-300 transition-colors">
-                Terms and conditions
-              </Link>
-              <Link href="/privacy" className="text-white hover:text-gray-300 transition-colors">
-                Privacy Policy
-              </Link>
-            </div>
-            
-            {/* Payment logo */}
-            <div className="flex items-center">
-              <img src="/visa-maib.webp" alt="Visa MAIB" className="h-6 md:h-8" />
+            {/* Legal information */}
+            <div className="border-t border-gray-700 pt-4 text-center text-sm text-gray-300">
+              <div className="flex flex-col md:flex-row items-center justify-center space-y-2 md:space-y-0 md:space-x-6">
+                <span>+373 796 60 101</span>
+                <span className="hidden md:inline">•</span>
+                <span>„ARTA SI CULTURA EVENIMENTULUI" A.O</span>
+                <span className="hidden md:inline">•</span>
+                <span>str. Petricani 17</span>
+              </div>
             </div>
           </div>
         </footer>

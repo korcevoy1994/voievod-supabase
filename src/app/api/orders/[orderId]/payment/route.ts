@@ -62,6 +62,11 @@ export async function POST(
           clientIp = '192.168.1.1'; // MAIB может не принимать localhost IP
         }
         
+        // Конвертируем IPv6 localhost в IPv4
+        if (clientIp === '::1' || clientIp === '127.0.0.1') {
+          clientIp = '192.168.1.1'; // MAIB может не принимать localhost IP
+        }
+        
         console.log('Client IP for MAIB:', clientIp);
         console.log('Order total_price:', order.total_price, 'type:', typeof order.total_price);
         
@@ -196,6 +201,25 @@ export async function POST(
         if (qrError) {
           console.error('Error generating QR code:', qrError);
         }
+      }
+
+      // Автоматически отправляем билеты на почту после успешной оплаты
+      try {
+        const emailResponse = await fetch(`http://localhost:3001/api/tickets/email`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({ orderId }),
+        });
+
+        if (emailResponse.ok) {
+          console.log(`Tickets automatically sent via email for order ${orderId}`);
+        } else {
+          console.error(`Failed to send tickets via email for order ${orderId}:`, await emailResponse.text());
+        }
+      } catch (emailError) {
+        console.error(`Error sending tickets via email for order ${orderId}:`, emailError);
       }
 
       return NextResponse.json({

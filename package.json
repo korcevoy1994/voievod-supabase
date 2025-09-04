@@ -12,7 +12,7 @@
   "dependencies": {
     "@floating-ui/react": "^0.27.13",
     "@supabase/ssr": "^0.7.0",
-    "@supabase/supabase-js": "^2.52.1",
+    "@supabase/supabase-js": "^2.57.0",
     "@tanstack/react-query": "^5.83.0",
     "@tanstack/react-query-devtools": "^5.83.0",
     "@types/jszip": "^3.4.0",
@@ -27,6 +27,7 @@
     "jszip": "^3.10.1",
     "lucide-react": "^0.542.0",
     "next": "^15.4.4",
+    "node-fetch": "^3.3.2",
     "node-html-parser": "^7.0.1",
     "nodemailer": "^7.0.5",
     "qrcode": "^1.5.4",

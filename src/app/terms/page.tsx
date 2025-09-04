@@ -59,6 +59,15 @@ export default function TermsPage() {
             
             <h2 className="text-2xl font-semibold mb-4 mt-8">Confidențialitate</h2>
             <p className="mb-4">– Prestatorul nu împarte datele cu caracter personal altor persoane sau companii decât celor implicate nemijlocit în procesul de achitare.</p>
+            
+            <h2 className="text-2xl font-semibold mb-4 mt-8">Informații juridice</h2>
+            <div className="bg-gray-50 p-6 rounded-lg">
+              <p className="mb-2"><strong>Denumirea juridică a companiei:</strong> AO Arta si Cultura Evenimentului</p>
+              <p className="mb-2"><strong>IDNO:</strong> 1016620000675</p>
+              <p className="mb-2"><strong>Adresa juridică:</strong> str. Tighina 49/4, of. A</p>
+              <p className="mb-2"><strong>Telefon de contact:</strong> +373 796 60 101</p>
+              <p className="mb-2"><strong>Email de contact:</strong> inna@mediashowgrup.com</p>
+            </div>
           </div>
         </div>
       </main>

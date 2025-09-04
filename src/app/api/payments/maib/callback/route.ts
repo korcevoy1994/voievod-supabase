@@ -192,6 +192,35 @@ export async function POST(request: NextRequest) {
             logger.error('Error generating QR code', qrError);
           }
         }
+
+        // Автоматически отправляем билеты на почту после успешной оплаты
+        try {
+          logger.info('Автоматическая отправка билетов на почту', { orderId: payment.order_id });
+          
+          const emailResponse = await fetch(`http://localhost:3001/api/tickets/email`, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({ orderId: payment.order_id })
+          });
+
+          if (emailResponse.ok) {
+            logger.info('Билеты успешно отправлены на почту', { orderId: payment.order_id });
+          } else {
+            const errorData = await emailResponse.json().catch(() => ({}));
+            logger.error('Ошибка автоматической отправки билетов', {
+              orderId: payment.order_id,
+              status: emailResponse.status,
+              error: errorData.error || 'Unknown error'
+            });
+          }
+        } catch (emailError) {
+          logger.error('Ошибка при автоматической отправке билетов', {
+            orderId: payment.order_id,
+            error: emailError
+          });
+        }
       } else if (newStatus === 'failed' || newStatus === 'cancelled') {
         // Если платеж неудачен, освобождаем места
         const { data: orderSeats } = await supabase
