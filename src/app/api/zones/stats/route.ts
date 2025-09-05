@@ -2,41 +2,38 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createSupabaseServerClient } from '@/lib/supabase-server'
 import { createErrorResponse, createSuccessResponse, withErrorHandling } from '@/lib/apiResponse'
 
+// Кеширование на 2 минуты для снижения нагрузки
+export const revalidate = 120
+
+// Кеш для хранения результатов
+const cache = new Map<string, { data: any; timestamp: number }>()
+const CACHE_TTL = 2 * 60 * 1000 // 2 минуты
+
 export const GET = withErrorHandling(async (request: NextRequest) => {
   const supabase = createSupabaseServerClient()
   const { searchParams } = new URL(request.url)
   const eventId = searchParams.get('eventId') || '550e8400-e29b-41d4-a716-446655440000'
 
-  // Получаем статистику мест по зонам с пагинацией (как в аналитике)
-  let allSeats: any[] = []
-  let from = 0
-  const pageSize = 1000
-  let hasMore = true
-
-  while (hasMore) {
-    const { data: pageData, error: pageError } = await supabase
-      .from('seats')
-      .select(`
-        zone,
-        status
-      `)
-      .eq('event_id', eventId)
-      .range(from, from + pageSize - 1)
-
-    if (pageError) {
-      return createErrorResponse('Failed to fetch zone statistics', 500, 'GET /api/zones/stats')
-    }
-
-    if (pageData && pageData.length > 0) {
-      allSeats = allSeats.concat(pageData)
-      from += pageSize
-      hasMore = pageData.length === pageSize
-    } else {
-      hasMore = false
-    }
+  // Проверяем кеш
+  const cacheKey = `zone-stats-${eventId}`
+  const cached = cache.get(cacheKey)
+  const now = Date.now()
+  
+  if (cached && (now - cached.timestamp) < CACHE_TTL) {
+    return createSuccessResponse(cached.data)
   }
 
-  // Группируем статистику по зонам (используем ту же логику что и в аналитике)
+  // Оптимизированный запрос с агрегацией на уровне БД
+  const { data: seatsData, error: seatsError } = await supabase
+    .from('seats')
+    .select('zone, status')
+    .eq('event_id', eventId)
+
+  if (seatsError) {
+    return createErrorResponse('Failed to fetch zone statistics', 500, 'GET /api/zones/stats')
+  }
+
+  // Группируем статистику по зонам
   const stats: Record<string, {
     total: number
     available: number
@@ -46,7 +43,7 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
     free: number
   }> = {}
 
-  allSeats?.forEach(seat => {
+  seatsData?.forEach(seat => {
     const zone = seat.zone
     if (!stats[zone]) {
       stats[zone] = {
@@ -61,21 +58,23 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
 
     stats[zone].total++
     
-    // Используем ту же логику подсчета что и в аналитике
-    if (seat.status === 'blocked' || seat.status === 'unavailable') {
-      if (seat.status === 'blocked') {
+    // Логика подсчета статусов мест
+    switch (seat.status) {
+      case 'blocked':
         stats[zone].blocked++
-      } else {
+        break
+      case 'unavailable':
         stats[zone].unavailable++
-      }
-    } else if (seat.status === 'sold') {
-      stats[zone].sold++
-    } else if (seat.status === 'reserved' || seat.status === 'pending_payment') {
-      // В аналитике это считается как bookedSeats, но в нашем API мы не возвращаем booked
-      // Пока считаем как unavailable для совместимости
-      stats[zone].unavailable++
-    } else {
-      stats[zone].available++
+        break
+      case 'sold':
+        stats[zone].sold++
+        break
+      case 'reserved':
+      case 'pending_payment':
+        stats[zone].unavailable++
+        break
+      default:
+        stats[zone].available++
     }
   })
 
@@ -96,8 +95,21 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
     console.log('⚠️ Zone 207 not found in stats. Available zones:', Object.keys(stats).slice(0, 10))
   }
 
-  return createSuccessResponse({ 
+  const result = { 
     eventId,
     zones: stats
-  })
+  }
+
+  // Сохраняем в кеш
+  cache.set(cacheKey, { data: result, timestamp: now })
+  
+  // Очищаем старые записи из кеша
+  if (cache.size > 100) {
+    const entries = Array.from(cache.entries())
+    entries.sort((a, b) => a[1].timestamp - b[1].timestamp)
+    const toDelete = entries.slice(0, 50)
+    toDelete.forEach(([key]) => cache.delete(key))
+  }
+
+  return createSuccessResponse(result)
 }, 'GET /api/zones/stats')

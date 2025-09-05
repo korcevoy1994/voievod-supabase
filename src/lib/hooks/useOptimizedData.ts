@@ -365,7 +365,7 @@ export function useOptimizedZoneStats(eventId: string = '550e8400-e29b-41d4-a716
       return result.data.zones // Возвращаем только данные зон из поля data
     },
     {
-       ttl: CACHE_TTL.STATIC, // 5 минут
+       ttl: CACHE_TTL.LONG_TERM, // 1 час для статистики зон
        staleWhileRevalidate: true,
        enabled: true // Явно включаем
      }

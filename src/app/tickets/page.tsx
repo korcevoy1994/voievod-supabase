@@ -43,46 +43,16 @@ export default function VoevodaSupabaseEventPage() {
   const { data: vipZonesData, loading: vipZonesLoading } = useOptimizedVipZones('550e8400-e29b-41d4-a716-446655440000')
   const { data: zoneStats, loading: zoneStatsLoading, refetch: refetchZoneStats } = useOptimizedZoneStats('550e8400-e29b-41d4-a716-446655440000')
   
-  // Debug для zoneStats
+  // Debug для zoneStats (только в development)
   useEffect(() => {
-    console.log('📊 ZoneStats Hook State:', {
-      zoneStats,
-      loading: zoneStatsLoading,
-      zone207: zoneStats?.['207']
-    })
-  }, [zoneStats, zoneStatsLoading])
-  
-  // Принудительная очистка кеша для zoneStats при загрузке
-  useEffect(() => {
-    // Очищаем кеш для zone stats
-    if (typeof window !== 'undefined') {
-      // Очищаем все возможные ключи кеша
-      const keys = Object.keys(localStorage).filter(key => key.includes('zone-stats'))
-      keys.forEach(key => localStorage.removeItem(key))
-      
-      // Также очищаем globalCache
-      import('@/lib/cache/enhancedCache').then(({ globalCache }) => {
-        globalCache.clear() // Полная очистка кеша
+    if (process.env.NODE_ENV === 'development') {
+      console.log('📊 ZoneStats Hook State:', {
+        zoneStats,
+        loading: zoneStatsLoading,
+        zone207: zoneStats?.['207']
       })
-      console.log('🗑️ Cleared ALL cache including zoneStats')
-      
-      // Принудительно вызываем refetch
-      setTimeout(() => {
-        refetchZoneStats()
-        console.log('🔄 Force refetch zoneStats')
-      }, 1000)
-      
-      // Прямой тест API
-      fetch('/api/zones/stats?eventId=550e8400-e29b-41d4-a716-446655440000')
-        .then(res => res.json())
-        .then(data => {
-          console.log('🧪 Direct API Test:', data)
-        })
-        .catch(err => {
-          console.error('❌ Direct API Test Error:', err)
-        })
     }
-  }, [refetchZoneStats])
+  }, [zoneStats, zoneStatsLoading])
   const [activeZone, setActiveZone] = useState<string | null>(null)
   const [showTooltip, setShowTooltip] = useState(true)
   const [selectedSeats, setSelectedSeats] = useState<Record<string, string[]>>({})
