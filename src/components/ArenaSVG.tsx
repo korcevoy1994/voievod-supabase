@@ -25,17 +25,9 @@ interface ArenaSVGProps {
 const ZONE_SEAT_DATA = ZONE_DATA_MAP as Record<string, any[]>
 
 const ArenaSVG: React.FC<ArenaSVGProps> = ({ onZoneClick, selectedSeats, onVipZoneClick, zonePrices = {}, zoneColors = {}, zoneStatus = {}, vipZonesData, vipTickets = [], zoneStats }) => {
-  const [tooltip, setTooltip] = useState<null | { x: number; y: number; content: React.ReactNode }>(null)
-  const [activeHoverZone, setActiveHoverZone] = useState<string | null>(null)
   const svgRef = useRef<SVGSVGElement>(null)
 
-  // Debug информация для zoneStats
-  console.log('🎯 ArenaSVG Component Debug:', {
-    hasZoneStats: !!zoneStats,
-    zoneStatsKeys: zoneStats ? Object.keys(zoneStats) : 'undefined',
-    zone207Stats: zoneStats?.['207'],
-    totalZones: zoneStats ? Object.keys(zoneStats).length : 0
-  })
+
 
 
 
@@ -86,113 +78,36 @@ const ArenaSVG: React.FC<ArenaSVGProps> = ({ onZoneClick, selectedSeats, onVipZo
 
   // Подсчет свободных мест для зоны
   function getZoneInfo(zoneId: string) {
-    const selectedCount = (selectedSeats[zoneId] || []).length
     const stats = zoneStats?.[zoneId]
-    
-    // Debug для зоны 207
-    if (zoneId === '207') {
-      console.log('🔍 Zone 207 Debug Info:', {
-        zoneId,
-        selectedCount,
-        stats,
-        zoneStats: zoneStats ? Object.keys(zoneStats) : 'undefined',
-        hasStats: !!stats
-      })
-    }
     
     // Если есть статистика из базы данных, используем её
     if (stats) {
-      // stats.free уже содержит правильное количество свободных мест, просто вычитаем выбранные
-      const free = Math.max(0, stats.free - selectedCount)
       const isBlocked = stats.blocked === stats.total
-      
-      const result = { 
-        price: zonePrices[zoneId] || '-', 
-        free, 
-        isBlocked,
-        total: stats.total,
-        sold: stats.sold,
-        available: stats.available
-      }
-      
-      // Debug для зоны 207
-      if (zoneId === '207') {
-        console.log('📊 Zone 207 Result (with stats):', result)
-      }
-      
-      return result
+      return { isBlocked }
     }
     
     // Fallback к старому методу подсчета для совместимости
     const data = ZONE_SEAT_DATA[zoneId]
     if (!data) {
-      if (zoneId === '207') {
-        console.log('❌ Zone 207: No data found in ZONE_SEAT_DATA')
-      }
-      return { price: zonePrices[zoneId] || '-', free: '-' }
+      return { isBlocked: false }
     }
     
     // Проверяем, активна ли зона в базе данных
     const isZoneActive = zoneStatus[zoneId] !== false // по умолчанию активна, если не указано иное
     if (!isZoneActive) {
-      if (zoneId === '207') {
-        console.log('🚫 Zone 207: Zone is not active')
-      }
-      return { price: zonePrices[zoneId] || '-', free: 0, isBlocked: true }
+      return { isBlocked: true }
     }
     
-    const total = data.length
-    const selectedInZone = (selectedSeats[zoneId] || []).length
-    const unavailable = data.filter(s => s.status === 'unavailable').length
     const blocked = data.filter(s => s.status === 'blocked').length
-    const free = total - unavailable - blocked - selectedInZone
+    const isBlocked = blocked === data.length
     
-    const fallbackResult = { price: zonePrices[zoneId] || '-', free, isBlocked: blocked === total }
-    
-    // Debug для зоны 207
-    if (zoneId === '207') {
-      console.log('🔄 Zone 207 Fallback Result:', {
-        total,
-        selectedInZone,
-        unavailable,
-        blocked,
-        free,
-        fallbackResult
-      })
-    }
-    
-    return fallbackResult
+    return { isBlocked }
   }
 
 
 
   // Tooltip render
-  const renderTooltip = () => tooltip && (
-    <div
-      style={{
-        position: 'absolute',
-        left: tooltip.x,
-        top: tooltip.y,
-        background: 'rgba(24,28,40,0.98)',
-        color: '#fff',
-        padding: '14px 22px',
-        borderRadius: 14,
-        fontSize: 16,
-        pointerEvents: 'none',
-        boxShadow: '0 8px 32px rgba(0,0,0,0.22)',
-        zIndex: 1000,
-        whiteSpace: 'nowrap',
-        fontWeight: 500,
-        border: '1.5px solid #2e3650',
-        opacity: 1,
-        transition: 'opacity 0.18s cubic-bezier(.4,0,.2,1)',
-        fontFamily: 'var(--font-geist-sans), Inter, Arial, sans-serif',
-        letterSpacing: 0.1,
-      }}
-    >
-      {tooltip.content}
-    </div>
-  )
+
 
   // Проверка, заблокирована ли зона полностью
   function isZoneBlocked(zoneId: string): boolean {
@@ -200,37 +115,11 @@ const ArenaSVG: React.FC<ArenaSVGProps> = ({ onZoneClick, selectedSeats, onVipZo
     return isBlocked || false
   }
 
-  // Обработчик ховера для зоны
-  function handleZoneHover(e: React.MouseEvent, zoneId: string) {
-    if (!svgRef.current) return
-    
-    // Не показываем tooltip для заблокированных зон
-    if (isZoneBlocked(zoneId)) return
-    
-    setActiveHoverZone(zoneId)
-    const rect = svgRef.current.getBoundingClientRect()
-    const { price, free } = getZoneInfo(zoneId)
-    setTooltip({
-      x: e.clientX - rect.left + 16,
-      y: e.clientY - rect.top - 38,
-      content: (
-        <>
-          <div style={{fontWeight:700, fontSize:18, marginBottom:4, letterSpacing:0.2}}>Zona {zoneId}</div>
-          <div style={{marginBottom:2}}>Preț: <b>{price} Lei</b></div>
-          <div>Locuri libere: <b>{free}</b></div>
-        </>
-      )
-    })
-  }
-  function handleZoneLeave() {
-    setActiveHoverZone(null)
-    setTooltip(null)
-  }
+
 
 
   return (
     <div className="w-full h-full flex items-center justify-center relative p-2">
-      {renderTooltip()}
       <svg
         ref={svgRef}
         viewBox="0 0 729 671"
@@ -301,131 +190,105 @@ const ArenaSVG: React.FC<ArenaSVGProps> = ({ onZoneClick, selectedSeats, onVipZo
 
           {/* Main Zones */}
           <motion.g id="2c51d686-c95b-46ab-ba12-df8ff2c14f3e" className={isZoneBlocked('213') ? 'cursor-not-allowed' : 'cursor-pointer'}
-            animate={activeHoverZone === '213' ? { filter: 'brightness(1.18)', opacity: 0.97 } : { filter: 'none', opacity: isZoneBlocked('213') ? 0.5 : 1 }}
+            animate={{ filter: 'none', opacity: isZoneBlocked('213') ? 0.5 : 1 }}
             transition={{ type: 'tween', duration: 0.18 }}
             onClick={() => !isZoneBlocked('213') && onZoneClick('213')}
-            onMouseMove={e => handleZoneHover(e, '213')}
-            onMouseLeave={handleZoneLeave}
           >
             <path d="M581.7 64H671.2C675.1 64 678.3 67.2 678.3 71.1V160.6C678.3 164.5 675.1 167.7 671.2 167.7H581.7C577.8 167.7 574.6 164.5 574.6 160.6V71.1C574.6 67.2 577.8 64 581.7 64Z" fill={getZoneColor('213')} />
             <text fill="white" style={{ whiteSpace: 'pre', fontFamily: 'var(--font-geist-sans)', fontSize: 24, fontWeight: 'bold', pointerEvents: 'none' }}><tspan x="605" y="124.227">213</tspan></text>
           </motion.g>
           <motion.g id="212" className="cursor-pointer"
-            animate={activeHoverZone === '212' ? { filter: 'brightness(1.18)', opacity: 0.97 } : { filter: 'none', opacity: 1 }}
+            animate={{ filter: 'none', opacity: 1 }}
             transition={{ type: 'tween', duration: 0.18 }}
             onClick={() => onZoneClick('212')}
-            onMouseMove={e => handleZoneHover(e, '212')}
-            onMouseLeave={handleZoneLeave}
           >
             <path d="M581.7 171.7H671.2C675.1 171.7 678.3 174.9 678.3 178.8V268.3C678.3 272.2 675.1 275.4 671.2 275.4H581.7C577.8 275.4 574.6 272.2 574.6 268.3V178.8C574.6 174.9 577.8 171.7 581.7 171.7Z" fill={getZoneColor('212')} />
             <text fill="white" style={{ whiteSpace: 'pre', fontFamily: 'var(--font-geist-sans)', fontSize: 24, fontWeight: 'bold', pointerEvents: 'none' }}><tspan x="605" y="232.227">212</tspan></text>
           </motion.g>
           <motion.g id="211" className="cursor-pointer"
-            animate={activeHoverZone === '211' ? { filter: 'brightness(1.18)', opacity: 0.97 } : { filter: 'none', opacity: 1 }}
+            animate={{ filter: 'none', opacity: 1 }}
             transition={{ type: 'tween', duration: 0.18 }}
             onClick={() => onZoneClick('211')}
-            onMouseMove={e => handleZoneHover(e, '211')}
-            onMouseLeave={handleZoneLeave}
           >
             <path d="M581.7 279.5H671.2C675.1 279.5 678.3 282.7 678.3 286.6V376.1C678.3 380 675.1 383.2 671.2 383.2H581.7C577.8 383.2 574.6 380 574.6 376.1V286.6C574.6 282.6 577.8 279.5 581.7 279.5Z" fill={getZoneColor('211')} />
             <text fill="white" style={{ whiteSpace: 'pre', fontFamily: 'var(--font-geist-sans)', fontSize: 24, fontWeight: 'bold', pointerEvents: 'none' }}><tspan x="607" y="340.227">211</tspan></text>
           </motion.g>
           <motion.g id="210" className="cursor-pointer"
-            animate={activeHoverZone === '210' ? { filter: 'brightness(1.18)', opacity: 0.97 } : { filter: 'none', opacity: 1 }}
+            animate={{ filter: 'none', opacity: 1 }}
             transition={{ type: 'tween', duration: 0.18 }}
             onClick={() => onZoneClick('210')}
-            onMouseMove={e => handleZoneHover(e, '210')}
-            onMouseLeave={handleZoneLeave}
           >
             <path d="M664.5 516.9C668.7 518.2 673 515.7 674.1 511.5C676.9 500.2 678.4 488.4 678.4 476.2V394.8C678.4 390.6 675 387.2 670.8 387.2H582.4C578.2 387.2 574.8 390.6 574.8 394.8V476.2C574.8 478.4 574.6 480.5 574.3 482.6C573.8 486.2 576.1 489.7 579.6 490.8L664.5 516.9Z" fill={getZoneColor('210')} />
             <text fill="white" style={{ whiteSpace: 'pre', fontFamily: 'var(--font-geist-sans)', fontSize: 24, fontWeight: 'bold', pointerEvents: 'none' }}><tspan x="604" y="452.227">210</tspan></text>
           </motion.g>
           <motion.g id="209" className="cursor-pointer"
-            animate={activeHoverZone === '209' ? { filter: 'brightness(1.18)', opacity: 0.97 } : { filter: 'none', opacity: 1 }}
+            animate={{ filter: 'none', opacity: 1 }}
             transition={{ type: 'tween', duration: 0.18 }}
             onClick={() => onZoneClick('209')}
-            onMouseMove={e => handleZoneHover(e, '209')}
-            onMouseLeave={handleZoneLeave}
           >
             <path d="M568.1 496.5C564.6 502 560 506.6 554.5 510.1C551.6 511.9 550.3 515.5 551.4 518.8L579.2 603.9C580.6 608.1 585.3 610.3 589.4 608.5C623.9 593.6 651.6 565.8 666.5 531.3C668.3 527.2 666.1 522.5 661.9 521.1L576.8 493.4C573.5 492.3 569.9 493.6 568.1 496.5Z" fill={getZoneColor('209')} />
             <text fill="white" style={{ whiteSpace: 'pre', fontFamily: 'var(--font-geist-sans)', fontSize: 24, fontWeight: 'bold', pointerEvents: 'none' }}><tspan x="585" y="560.227">209</tspan></text>
           </motion.g>
           <motion.g id="208" className="cursor-pointer"
-            animate={activeHoverZone === '208' ? { filter: 'brightness(1.18)', opacity: 0.97 } : { filter: 'none', opacity: 1 }}
+            animate={{ filter: 'none', opacity: 1 }}
             transition={{ type: 'tween', duration: 0.18 }}
             onClick={() => onZoneClick('208')}
-            onMouseMove={e => handleZoneHover(e, '208')}
-            onMouseLeave={handleZoneLeave}
           >
             <path d="M548.6 521.5C547.5 517.9 543.9 515.8 540.3 516.4C538.1 516.7 535.9 516.9 533.7 516.9H451.8C447.6 516.9 444.2 520.3 444.2 524.5V612.9C444.2 617.1 447.6 620.5 451.8 620.5H533.7C546.1 620.5 558.1 619 569.6 616.1C573.8 615.1 576.3 610.7 575 606.5L548.6 521.5Z" fill={getZoneColor('208')} />
             <text fill="white" style={{ whiteSpace: 'pre', fontFamily: 'var(--font-geist-sans)', fontSize: 24, fontWeight: 'bold', pointerEvents: 'none' }}><tspan x="481" y="577.227">208</tspan></text>
           </motion.g>
           <motion.g id="207" className="cursor-pointer"
-            animate={activeHoverZone === '207' ? { filter: 'brightness(1.18)', opacity: 0.97 } : { filter: 'none', opacity: 1 }}
+            animate={{ filter: 'none', opacity: 1 }}
             transition={{ type: 'tween', duration: 0.18 }}
             onClick={() => onZoneClick('207')}
-            onMouseMove={e => handleZoneHover(e, '207')}
-            onMouseLeave={handleZoneLeave}
           >
             <path d="M296.1 516.6H432.5C436.7 516.6 440.1 520 440.1 524.2V613.2C440.1 617.4 436.7 620.8 432.5 620.8H296.1C291.9 620.8 288.5 617.4 288.5 613.2V524.2C288.5 520 291.9 516.6 296.1 516.6Z" fill={getZoneColor('207')} />
             <text fill="white" style={{ whiteSpace: 'pre', fontFamily: 'var(--font-geist-sans)', fontSize: 24, fontWeight: 'bold', pointerEvents: 'none' }}><tspan x="341" y="577.227">207</tspan></text>
           </motion.g>
           <motion.g id="206" className="cursor-pointer"
-            animate={activeHoverZone === '206' ? { filter: 'brightness(1.18)', opacity: 0.97 } : { filter: 'none', opacity: 1 }}
+            animate={{ filter: 'none', opacity: 1 }}
             transition={{ type: 'tween', duration: 0.18 }}
             onClick={() => onZoneClick('206')}
-            onMouseMove={e => handleZoneHover(e, '206')}
-            onMouseLeave={handleZoneLeave}
           >
             <path d="M180.1 521.5C181.2 517.9 184.8 515.8 188.5 516.4C190.7 516.7 192.9 516.9 195.1 516.9H277C281.2 516.9 284.6 520.3 284.6 524.5V612.9C284.6 617.1 281.2 620.5 277 620.5H195.1C182.7 620.5 170.7 619 159.2 616.1C155 615.1 152.5 610.7 153.8 606.5L180.1 521.5Z" fill={getZoneColor('206')} />
             <text fill="white" style={{ whiteSpace: 'pre', fontFamily: 'var(--font-geist-sans)', fontSize: 24, fontWeight: 'bold', pointerEvents: 'none' }}><tspan x="202" y="577.227">206</tspan></text>
           </motion.g>
           <motion.g id="205" className="cursor-pointer"
-            animate={activeHoverZone === '205' ? { filter: 'brightness(1.18)', opacity: 0.97 } : { filter: 'none', opacity: 1 }}
+            animate={{ filter: 'none', opacity: 1 }}
             transition={{ type: 'tween', duration: 0.18 }}
             onClick={() => onZoneClick('205')}
-            onMouseMove={e => handleZoneHover(e, '205')}
-            onMouseLeave={handleZoneLeave}
           >
             <path d="M160.6 496.5C164.1 502 168.7 506.6 174.2 510.1C177.1 511.9 178.4 515.5 177.3 518.8L149.4 603.9C148 608.1 143.3 610.3 139.2 608.5C104.6 593.6 77 565.8 62.1 531.3C60.3 527.2 62.5 522.5 66.7 521.1L151.8 493.4C155.1 492.3 158.7 493.6 160.6 496.5Z" fill={getZoneColor('205')} />
             <text fill="white" style={{ whiteSpace: 'pre', fontFamily: 'var(--font-geist-sans)', fontSize: 24, fontWeight: 'bold', pointerEvents: 'none' }}><tspan x="96" y="560.227">205</tspan></text>
           </motion.g>
           <motion.g id="204" className="cursor-pointer"
-            animate={activeHoverZone === '204' ? { filter: 'brightness(1.18)', opacity: 0.97 } : { filter: 'none', opacity: 1 }}
+            animate={{ filter: 'none', opacity: 1 }}
             transition={{ type: 'tween', duration: 0.18 }}
             onClick={() => onZoneClick('204')}
-            onMouseMove={e => handleZoneHover(e, '204')}
-            onMouseLeave={handleZoneLeave}
           >
             <path d="M64.1 516.9C59.9 518.2 55.6 515.7 54.5 511.5C51.7 500.2 50.2 488.4 50.2 476.2V394.8C50.2 390.6 53.6 387.2 57.8 387.2H146.2C150.4 387.2 153.8 390.6 153.8 394.8V476.2C153.8 478.4 154 480.5 154.3 482.6C154.8 486.2 152.5 489.7 149 490.8L64.1 516.9Z" fill={getZoneColor('204')} />
             <text fill="white" style={{ whiteSpace: 'pre', fontFamily: 'var(--font-geist-sans)', fontSize: 24, fontWeight: 'bold', pointerEvents: 'none' }}><tspan x="78" y="451.227">204</tspan></text>
           </motion.g>
           <motion.g id="203" className="cursor-pointer"
-            animate={activeHoverZone === '203' ? { filter: 'brightness(1.18)', opacity: 0.97 } : { filter: 'none', opacity: 1 }}
+            animate={{ filter: 'none', opacity: 1 }}
             transition={{ type: 'tween', duration: 0.18 }}
             onClick={() => onZoneClick('203')}
-            onMouseMove={e => handleZoneHover(e, '203')}
-            onMouseLeave={handleZoneLeave}
           >
             <path d="M57.4 279.5H146.9C150.8 279.5 154 282.7 154 286.6V376.1C154 380 150.8 383.2 146.9 383.2H57.4C53.5 383.2 50.3 380 50.3 376.1V286.6C50.3 282.7 53.5 279.5 57.4 279.5Z" fill={getZoneColor('203')} />
             <text fill="white" style={{ whiteSpace: 'pre', fontFamily: 'var(--font-geist-sans)', fontSize: 24, fontWeight: 'bold', pointerEvents: 'none' }}><tspan x="78" y="340.227">203</tspan></text>
           </motion.g>
           <motion.g id="201" className={isZoneBlocked('201') ? 'cursor-not-allowed' : 'cursor-pointer'}
-            animate={activeHoverZone === '201' ? { filter: 'brightness(1.18)', opacity: 0.97 } : { filter: 'none', opacity: isZoneBlocked('201') ? 0.5 : 1 }}
+            animate={{ filter: 'none', opacity: isZoneBlocked('201') ? 0.5 : 1 }}
             transition={{ type: 'tween', duration: 0.18 }}
             onClick={() => !isZoneBlocked('201') && onZoneClick('201')}
-            onMouseMove={e => handleZoneHover(e, '201')}
-            onMouseLeave={handleZoneLeave}
           >
             <path d="M57.4 64H146.9C150.8 64 154 67.2 154 71.1V160.6C154 164.5 150.8 167.7 146.9 167.7H57.4C53.5 167.7 50.3 164.5 50.3 160.6V71.1C50.3 67.2 53.5 64 57.4 64Z" fill={getZoneColor('201')} />
             <text fill="white" style={{ whiteSpace: 'pre', fontFamily: 'var(--font-geist-sans)', fontSize: 24, fontWeight: 'bold', pointerEvents: 'none' }}><tspan x="80" y="124.227">201</tspan></text>
           </motion.g>
           <motion.g id="202" className="cursor-pointer"
-            animate={activeHoverZone === '202' ? { filter: 'brightness(1.18)', opacity: 0.97 } : { filter: 'none', opacity: 1 }}
+            animate={{ filter: 'none', opacity: 1 }}
             transition={{ type: 'tween', duration: 0.18 }}
             onClick={() => onZoneClick('202')}
-            onMouseMove={e => handleZoneHover(e, '202')}
-            onMouseLeave={handleZoneLeave}
           >
             <path d="M57.4 171.7H146.9C150.8 171.7 154 174.9 154 178.8V268.3C154 272.2 150.8 275.4 146.9 275.4H57.4C53.5 275.4 50.3 272.2 50.3 268.3V178.8C50.3 174.9 53.5 171.7 57.4 171.7Z" fill={getZoneColor('202')} />
             <text fill="white" style={{ whiteSpace: 'pre', fontFamily: 'var(--font-geist-sans)', fontSize: 24, fontWeight: 'bold', pointerEvents: 'none' }}><tspan x="79" y="232.227">202</tspan></text>
@@ -433,31 +296,25 @@ const ArenaSVG: React.FC<ArenaSVGProps> = ({ onZoneClick, selectedSeats, onVipZo
 
           {/* Новые сектора A, B, C */}
           <motion.g id="Sector-A" className="cursor-pointer"
-            animate={activeHoverZone === 'A' ? { filter: 'brightness(1.18)', opacity: 0.97 } : { filter: 'none', opacity: 1 }}
+            animate={{ filter: 'none', opacity: 1 }}
             transition={{ type: 'tween', duration: 0.18 }}
             onClick={() => onZoneClick('A')}
-            onMouseMove={e => handleZoneHover(e, 'A')}
-            onMouseLeave={handleZoneLeave}
           >
             <path d="M164 268.255V400.491C164 420.761 190.682 428.171 201.135 410.805L281.782 276.822C286.358 269.22 285.379 259.513 279.377 252.978L225.601 194.429C215.867 183.831 198.461 186.673 192.603 199.817L165.732 260.114C164.59 262.676 164 265.45 164 268.255Z" fill={getZoneColor('A')} />
             <text fill="white" style={{ whiteSpace: 'pre', fontFamily: 'var(--font-geist-sans)', fontSize: 20, fontWeight: 'bold', pointerEvents: 'none' }}><tspan x="175.072" y="282.273">SECTOR</tspan><tspan x="208.52" y="306.273">A</tspan></text>
           </motion.g>
           <motion.g id="Sector-B" className="cursor-pointer"
-            animate={activeHoverZone === 'B' ? { filter: 'brightness(1.18)', opacity: 0.97 } : { filter: 'none', opacity: 1 }}
+            animate={{ filter: 'none', opacity: 1 }}
             transition={{ type: 'tween', duration: 0.18 }}
             onClick={() => onZoneClick('B')}
-            onMouseMove={e => handleZoneHover(e, 'B')}
-            onMouseLeave={handleZoneLeave}
           >
             <path d="M428.469 305C435.375 305 441.792 308.562 445.444 314.423L547.006 477.423C555.307 490.745 545.728 508 530.031 508H205.03C189.561 508 179.948 491.19 187.793 477.858L283.7 314.858C287.293 308.75 293.851 305 300.937 305H428.469Z" fill={getZoneColor('B')} />
             <text fill="white" style={{ whiteSpace: 'pre', fontFamily: 'var(--font-geist-sans)', fontSize: 20, fontWeight: 'bold', pointerEvents: 'none' }}><tspan x="326.072" y="401.273">SECTOR</tspan><tspan x="360.389" y="425.273">B</tspan></text>
           </motion.g>
           <motion.g id="Sector-C" className="cursor-pointer"
-            animate={activeHoverZone === 'C' ? { filter: 'brightness(1.18)', opacity: 0.97 } : { filter: 'none', opacity: 1 }}
+            animate={{ filter: 'none', opacity: 1 }}
             transition={{ type: 'tween', duration: 0.18 }}
             onClick={() => onZoneClick('C')}
-            onMouseMove={e => handleZoneHover(e, 'C')}
-            onMouseLeave={handleZoneLeave}
           >
             <path d="M565.5 268.255V400.491C565.5 420.761 538.818 428.171 528.365 410.805L447.718 276.822C443.142 269.22 444.121 259.513 450.123 252.978L503.899 194.429C513.633 183.831 531.039 186.673 536.897 199.817L563.768 260.114C564.91 262.676 565.5 265.45 565.5 268.255Z" fill={getZoneColor('C')} />
             <text fill="white" style={{ whiteSpace: 'pre', fontFamily: 'var(--font-geist-sans)', fontSize: 20, fontWeight: 'bold', pointerEvents: 'none' }}><tspan x="471.072" y="282.273">SECTOR</tspan><tspan x="504.48" y="306.273">C</tspan></text>
