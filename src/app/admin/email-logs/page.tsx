@@ -37,6 +37,7 @@ export default function EmailLogsPage() {
   const [emailLogs, setEmailLogs] = useState<EmailLog[]>([])
   const [loading, setLoading] = useState(true)
   const [resending, setResending] = useState<string | null>(null)
+  const [isSendingEmailToAll, setIsSendingEmailToAll] = useState(false)
   const [statistics, setStatistics] = useState({
     total: 0,
     sent: 0,
@@ -115,6 +116,31 @@ export default function EmailLogsPage() {
     }
   }
 
+  const sendEmailToAllPaidUsers = async () => {
+    setIsSendingEmailToAll(true)
+    try {
+      const response = await fetch('/api/tickets/email-all', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        }
+      })
+
+      const result = await response.json()
+
+      if (!response.ok) {
+        throw new Error(result.error || 'Ошибка при массовой отправке email')
+      }
+
+      alert(`Email с билетами успешно отправлены всем пользователям! Отправлено: ${result.sent} писем`)
+      fetchEmailLogs() // Обновляем список логов
+    } catch (error) {
+      alert(`Ошибка при массовой отправке email: ${error instanceof Error ? error.message : 'Неизвестная ошибка'}`)
+    } finally {
+      setIsSendingEmailToAll(false)
+    }
+  }
+
   const getStatusIcon = (status: string) => {
     switch (status) {
       case 'sent':
@@ -179,14 +205,24 @@ export default function EmailLogsPage() {
     <div className="container mx-auto p-6 space-y-6">
       <div className="flex justify-between items-center">
         <h1 className="text-3xl font-bold">Логи отправки Email</h1>
-        <button 
-          onClick={() => fetchEmailLogs(pagination.page)} 
-          disabled={loading}
-          className="inline-flex items-center px-4 py-2 bg-blue-600 border border-transparent rounded-md shadow-sm text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-50"
-        >
-          <RefreshCw className={`h-4 w-4 mr-2 ${loading ? 'animate-spin' : ''}`} />
-          Обновить
-        </button>
+        <div className="flex space-x-3">
+          <button 
+            onClick={sendEmailToAllPaidUsers}
+            disabled={isSendingEmailToAll || loading}
+            className="inline-flex items-center px-4 py-2 bg-green-600 border border-transparent rounded-md shadow-sm text-sm font-medium text-white hover:bg-green-700 disabled:opacity-50"
+          >
+            <Mail className={`h-4 w-4 mr-2 ${isSendingEmailToAll ? 'animate-pulse' : ''}`} />
+            {isSendingEmailToAll ? 'Отправляем...' : 'Отправить всем'}
+          </button>
+          <button 
+            onClick={() => fetchEmailLogs(pagination.page)} 
+            disabled={loading}
+            className="inline-flex items-center px-4 py-2 bg-blue-600 border border-transparent rounded-md shadow-sm text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-50"
+          >
+            <RefreshCw className={`h-4 w-4 mr-2 ${loading ? 'animate-spin' : ''}`} />
+            Обновить
+          </button>
+        </div>
       </div>
 
       {/* Статистика */}

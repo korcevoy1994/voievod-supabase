@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect } from 'react'
 import { motion } from 'framer-motion'
-import { Search, Filter, Download, Eye, Edit, RefreshCw, Calendar, DollarSign, Users, TrendingUp, RotateCcw, Plus, LogOut, BarChart3 } from 'lucide-react'
+import { Search, Filter, Download, Eye, Edit, RefreshCw, Calendar, DollarSign, Users, TrendingUp, RotateCcw, Plus, LogOut, BarChart3, Mail } from 'lucide-react'
 import { useRouter } from 'next/navigation'
 import { getSupabaseBrowserSSRClient } from '@/lib/supabase-ssr'
 import AdminLogin from '@/components/AdminLogin'
@@ -124,6 +124,8 @@ export default function AdminPage() {
   const [isProcessingRefund, setIsProcessingRefund] = useState(false)
   const [refundType, setRefundType] = useState<'full' | 'partial'>('full')
   const [refundAmount, setRefundAmount] = useState('')
+  const [isSendingEmail, setIsSendingEmail] = useState(false)
+
 
   const [stats, setStats] = useState({
     totalOrders: 0,
@@ -323,6 +325,33 @@ export default function AdminPage() {
     }
   }
 
+  const sendEmailTickets = async (orderId: string) => {
+    setIsSendingEmail(true)
+    try {
+      const response = await fetch('/api/tickets/email', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ orderId })
+      })
+
+      const result = await response.json()
+
+      if (!response.ok) {
+        throw new Error(result.error || 'Ошибка при отправке email')
+      }
+
+      alert('Email с билетами успешно отправлен!')
+    } catch (error) {
+      alert(`Ошибка при отправке email: ${error instanceof Error ? error.message : 'Неизвестная ошибка'}`)
+    } finally {
+      setIsSendingEmail(false)
+    }
+  }
+
+
+
   // Проверка аутентификации при загрузке
   useEffect(() => {
     const checkAuth = async () => {
@@ -471,6 +500,7 @@ export default function AdminPage() {
                 <Download className="h-4 w-4 mr-2" />
                 Экспорт
               </button>
+
               <button
                 onClick={fetchOrders}
                 className="inline-flex items-center px-4 py-2 bg-blue-600 border border-transparent rounded-md shadow-sm text-sm font-medium text-white hover:bg-blue-700"
@@ -940,6 +970,23 @@ export default function AdminPage() {
                     >
                       <Download className="w-4 h-4" />
                       Скачать билеты PDF
+                    </button>
+                    <button
+                      onClick={() => sendEmailTickets(selectedOrder.id)}
+                      disabled={isSendingEmail}
+                      className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+                    >
+                      {isSendingEmail ? (
+                        <>
+                          <RefreshCw className="w-4 h-4 animate-spin" />
+                          Отправка...
+                        </>
+                      ) : (
+                        <>
+                          <Mail className="w-4 h-4" />
+                          Отправить email
+                        </>
+                      )}
                     </button>
                     <button
                       onClick={() => {
