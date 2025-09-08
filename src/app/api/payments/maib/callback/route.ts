@@ -197,7 +197,8 @@ export async function POST(request: NextRequest) {
         try {
           logger.info('Автоматическая отправка билетов на почту', { orderId: payment.order_id });
           
-          const emailResponse = await fetch(`http://localhost:3001/api/tickets/email`, {
+          const baseUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://voievodul.md';
+          const emailResponse = await fetch(`${baseUrl}/api/tickets/email`, {
             method: 'POST',
             headers: {
               'Content-Type': 'application/json',
