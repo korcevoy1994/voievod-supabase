@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { maibClient } from '@/lib/maib-client';
 import { createSupabaseServerClient } from '@/lib/supabase-server';
 import { logger } from '@/lib/logger';
+import { telegramBot } from '@/lib/telegram';
 
 // POST - обработка callback уведомлений от MAIB
 export async function POST(request: NextRequest) {
@@ -220,6 +221,40 @@ export async function POST(request: NextRequest) {
           logger.error('Ошибка при автоматической отправке билетов', {
             orderId: payment.order_id,
             error: emailError
+          });
+        }
+
+        // Отправляем уведомление в Telegram о успешном заказе
+        try {
+          const { data: orderDetails } = await supabase
+            .from('orders')
+            .select(`
+              *,
+              order_seats(seat_id, seats(row, number))
+            `)
+            .eq('id', payment.order_id)
+            .single();
+
+          if (orderDetails) {
+            const seatsCount = orderDetails.order_seats?.length || 0;
+            
+            await telegramBot.sendOrderNotification({
+              orderId: payment.order_id,
+              orderNumber: orderDetails.order_number,
+              customerName: orderDetails.customer_name,
+              customerEmail: orderDetails.customer_email,
+              customerPhone: orderDetails.customer_phone,
+              totalAmount: orderDetails.total_price,
+              seatsCount,
+              paymentMethod: 'MAIB (Карта)'
+            });
+            
+            logger.info('Telegram уведомление отправлено', { orderId: payment.order_id });
+          }
+        } catch (telegramError) {
+          logger.error('Ошибка отправки Telegram уведомления', {
+            orderId: payment.order_id,
+            error: telegramError
           });
         }
       } else if (newStatus === 'failed' || newStatus === 'cancelled') {

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { maibClient } from '@/lib/maib-client';
 import { createSupabaseServerClient } from '@/lib/supabase-server';
+import { telegramBot } from '@/lib/telegram';
 
 interface PaymentRequest {
   paymentMethod: string;
@@ -227,7 +228,8 @@ export async function POST(
 
       // Автоматически отправляем билеты на почту после успешной оплаты
       try {
-        const emailResponse = await fetch(`http://localhost:3001/api/tickets/email`, {
+        const baseUrl = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000';
+        const emailResponse = await fetch(`${baseUrl}/api/tickets/email`, {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
@@ -242,6 +244,37 @@ export async function POST(
         }
       } catch (emailError) {
         console.error(`Error sending tickets via email for order ${orderId}:`, emailError);
+      }
+
+      // Отправляем уведомление в Telegram о успешном заказе
+      try {
+        const { data: orderDetails } = await supabase
+          .from('orders')
+          .select(`
+            *,
+            order_seats(seat_id, seats(row, number))
+          `)
+          .eq('id', orderId)
+          .single();
+
+        if (orderDetails) {
+          const seatsCount = orderDetails.order_seats?.length || 0;
+          
+          await telegramBot.sendOrderNotification({
+            orderId,
+            orderNumber: orderDetails.order_number,
+            customerName: orderDetails.customer_name,
+            customerEmail: orderDetails.customer_email,
+            customerPhone: orderDetails.customer_phone,
+            totalAmount: orderDetails.total_price,
+            seatsCount,
+            paymentMethod: paymentMethod === 'card' ? 'Тестовая карта' : paymentMethod
+          });
+          
+          console.log(`Telegram notification sent for order ${orderId}`);
+        }
+      } catch (telegramError) {
+        console.error(`Error sending Telegram notification for order ${orderId}:`, telegramError);
       }
 
       return NextResponse.json({
