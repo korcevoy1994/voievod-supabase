@@ -240,7 +240,7 @@ export async function POST(request: NextRequest) {
   let recipientEmail: string = '';
   
   try {
-    const { orderId: requestOrderId } = await request.json()
+    const { orderId: requestOrderId, testEmail } = await request.json()
     orderId = requestOrderId;
     
     if (!orderId) {
@@ -267,7 +267,7 @@ export async function POST(request: NextRequest) {
       )
     }
     
-    recipientEmail = order.customer_email;
+    recipientEmail = testEmail || order.customer_email;
     
     // Логируем начало попытки отправки email
     await logEmailAttempt(supabase, orderId, recipientEmail, 'pending');
@@ -408,7 +408,7 @@ export async function POST(request: NextRequest) {
         </div>
       `,
       attachments: attachments
-    }
+    };
     
     console.log('📧 Отправка email на адрес:', order.customer_email)
     console.log('📎 Количество вложений:', attachments.length)
